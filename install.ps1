@@ -80,6 +80,8 @@ if ($LASTEXITCODE -ne 0) { throw "编译失败（退出码 $LASTEXITCODE）" }
 if (-not (Test-Path $exe)) { throw "编译没有产出 $exe" }
 Write-Host ("    " + $exe)
 
+# 快捷方式悬停时显示的说明（写进 .lnk 的备注字段）
+$descText = '左键：倒计时关机，再点一次可取消　｜　Shift+左键 或 右键菜单：电源菜单'
 # ---------------------------------------------------------------- 备份
 $backupFile = Join-Path $backup 'shutdown.lnk.bak'
 if ((Test-Path $link) -and -not (Test-Path $backupFile)) {
@@ -100,15 +102,29 @@ if (Test-Path $link) {
     $sc.Arguments         = ''
     $sc.WorkingDirectory  = $outDir
     $sc.IconLocation      = ($exe + ',0')
-    $sc.Description       = '左键：倒计时关机（再点一次可取消）　Shift+左键 或 右键：电源菜单'
+    $sc.Description       = $descText
     $sc.WindowStyle       = 1
     $sc.Save()
+    # 立刻释放 COM 引用，否则 .lnk 仍被这个进程占着，后面改写备注会静默失败
+    [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($sc)
+    [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell)
+    Remove-Variable sc, shell -ErrorAction SilentlyContinue
 }
 else {
     Write-Warning "任务栏上没有找到 shutdown.lnk，跳过改写。"
     Write-Warning "请把 $exe 手动固定到任务栏。"
 }
 
+# WScript.Shell 会按系统 ANSI 代码页（本机 CP932）转码，中文被写成 '?'。
+# 改用程序自己的 IShellLinkW 路径重写备注，保证悬停提示是完整中文。
+if (Test-Path $link) {
+    $descFile = Join-Path $env:TEMP 'powerbutton-desc.txt'
+    [System.IO.File]::WriteAllText($descFile, $descText, (New-Object System.Text.UTF8Encoding($false)))
+    # 路径要显式加引号：Start-Process 不会替我们转义空格（"Quick Launch" 就带空格）
+    $q = [char]34
+    $fix = Start-Process -FilePath $exe -Wait -PassThru -ArgumentList @('--set-description', ($q + $link + $q), '--file', ($q + $descFile + $q))
+    if ($fix.ExitCode -ne 0) { throw ("写入快捷方式备注失败（退出码 " + $fix.ExitCode + "）") }
+}
 # ---------------------------------------------------------------- 右键动词
 Write-Step "注册右键菜单命令"
 $verb = 'HKCU:\Software\Classes\Applications\PowerButton.exe\shell\menu'

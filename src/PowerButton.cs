@@ -13,6 +13,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -161,9 +162,141 @@ namespace PowerButton
         }
     }
 
-    internal static class MessageDlg
+    // 写 .lnk 的「备注」（Explorer 悬停时显示的那行字）。
+    // 不能用 WScript.Shell：它在非 Unicode 代码页的系统上按 ANSI 转码，中文会变成 '?'。
+    // 这里直接走 IShellLinkW，全程 UTF-16。
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+    internal class ShellLinkClass
     {
-        internal static void Info(string text)
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
+     Guid("000214F9-0000-0000-C000-000000000046")]
+    internal interface IShellLinkW
+    {
+        void GetPath(StringBuilder file, int cch, IntPtr findData, uint flags);
+        void GetIDList(out IntPtr pidl);
+        void SetIDList(IntPtr pidl);
+        void GetDescription(StringBuilder name, int cch);
+        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string name);
+        void GetWorkingDirectory(StringBuilder dir, int cch);
+        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string dir);
+        void GetArguments(StringBuilder args, int cch);
+        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string args);
+        void GetHotkey(out short hotkey);
+        void SetHotkey(short hotkey);
+        void GetShowCmd(out int showCmd);
+        void SetShowCmd(int showCmd);
+        void GetIconLocation(StringBuilder iconPath, int cch, out int iconIndex);
+        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string iconPath, int iconIndex);
+        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pathRel, uint reserved);
+        void Resolve(IntPtr hwnd, uint flags);
+        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string file);
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
+     Guid("0000010b-0000-0000-C000-000000000046")]
+    internal interface IPersistFile
+    {
+        void GetClassID(out Guid classId);
+        [PreserveSig] int IsDirty();
+        void Load([MarshalAs(UnmanagedType.LPWStr)] string fileName, uint mode);
+        void Save([MarshalAs(UnmanagedType.LPWStr)] string fileName,
+                  [MarshalAs(UnmanagedType.Bool)] bool remember);
+        void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string fileName);
+        void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string fileName);
+    }
+
+    internal static class Shortcut
+    {
+        [DllImport("ole32.dll")]
+        private static extern int CoCreateInstance(ref Guid clsid, IntPtr outer, uint ctx,
+                                                   ref Guid iid, out IntPtr ppv);
+
+        [DllImport("ole32.dll")]
+        private static extern int OleInitialize(IntPtr reserved);
+
+        private static readonly Guid ShellLinkClsid = new Guid("00021401-0000-0000-C000-000000000046");
+        private static readonly Guid ShellLinkW_IID = new Guid("000214F9-0000-0000-C000-000000000046");
+
+        private static object CreateShellLink()
+        {
+            Guid clsid = ShellLinkClsid;
+            Guid iid = ShellLinkW_IID;
+            IntPtr ptr;
+            int hr = CoCreateInstance(ref clsid, IntPtr.Zero, 1 /*CLSCTX_INPROC_SERVER*/, ref iid, out ptr);
+            if (hr != 0 || ptr == IntPtr.Zero)
+                throw new COMException("CoCreateInstance 失败", hr);
+
+            try
+            {
+                return Marshal.GetObjectForIUnknown(ptr);
+            }
+            finally
+            {
+                Marshal.Release(ptr);
+            }
+        }
+
+        internal static bool SetDescription(string lnkPath, string text)
+        {
+            object com = null;
+            try
+            {
+                OleInitialize(IntPtr.Zero);
+                com = CreateShellLink();
+                IPersistFile file = (IPersistFile)com;
+                // 必须先 Load：否则是个空链，Save 会把目标/参数/图标全抹掉。
+                file.Load(lnkPath, 2); // STGM_READWRITE
+                ((IShellLinkW)com).SetDescription(text);
+                file.Save(lnkPath, true);
+                // 写完再读回来核对：被别的进程占着文件时 Save 可能静默不生效。
+                return ReadDescription(lnkPath) == text;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (com != null)
+                {
+                    try { Marshal.FinalReleaseComObject(com); }
+                    catch { }
+                }
+            }
+        }
+
+        // 诊断用：把 .lnk 里那条备注按 UTF-16 原样读出来。
+        internal static string ReadDescription(string lnkPath)
+        {
+            object com = null;
+            try
+            {
+                OleInitialize(IntPtr.Zero);
+                com = CreateShellLink();
+                ((IPersistFile)com).Load(lnkPath, 0); // STGM_READ
+                StringBuilder sb = new StringBuilder(1024);
+                ((IShellLinkW)com).GetDescription(sb, sb.Capacity);
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                return "<error " + ex.GetType().Name + ": " + ex.Message + ">";
+            }
+            finally
+            {
+                if (com != null)
+                {
+                    try { Marshal.FinalReleaseComObject(com); }
+                    catch { }
+                }
+            }
+        }
+    }
+
+    internal static class MessageDlg
+    {        internal static void Info(string text)
         {
             MessageBox.Show(text, "电源", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -753,6 +886,53 @@ namespace PowerButton
                 {
                     // 只检查能不能取到关机权限，不执行任何关机动作。
                     Environment.ExitCode = Native.CanEnableShutdownPrivilege() ? 0 : 2;
+                    return;
+                }
+                else if (a == "--set-description" || a == "/set-description")
+                {
+                    // 安装脚本用：把中文备注写进 .lnk（WScript.Shell 会写坏成 '?'）。
+                    // 文本可以直接给，也可以用 --file <utf8 文件> 传，避开命令行里的空格拆分。
+                    if (i + 2 >= args.Length)
+                    {
+                        Environment.ExitCode = 2;
+                        return;
+                    }
+
+                    string lnk = args[i + 1];
+                    string text = args[i + 2];
+                    if (text == "--file")
+                    {
+                        if (i + 3 >= args.Length)
+                        {
+                            Environment.ExitCode = 2;
+                            return;
+                        }
+
+                        text = File.ReadAllText(args[i + 3], Encoding.UTF8).TrimEnd('\r', '\n');
+                    }
+
+                    Environment.ExitCode = Shortcut.SetDescription(lnk, text) ? 0 : 1;
+                    return;
+                }
+                else if (a == "--lnk-probe" || a == "/lnk-probe")
+                {
+                    // 诊断：把 .lnk 的备注原样读出来写成文本文件（winexe 没有 stdout）。
+                    if (i + 2 >= args.Length)
+                    {
+                        Environment.ExitCode = 2;
+                        return;
+                    }
+
+                    string got = Shortcut.ReadDescription(args[i + 1]);
+                    StringBuilder dump = new StringBuilder();
+                    dump.AppendLine("length=" + got.Length);
+                    dump.AppendLine("text=[" + got + "]");
+                    StringBuilder points = new StringBuilder();
+                    for (int k = 0; k < got.Length; k++)
+                        points.Append((int)got[k]).Append(',');
+                    dump.AppendLine("points=" + points);
+                    File.WriteAllText(args[i + 2], dump.ToString(), new UTF8Encoding(false));
+                    Environment.ExitCode = got.StartsWith("<error") ? 1 : 0;
                     return;
                 }
                 else if (a == "--delay" || a == "/delay")

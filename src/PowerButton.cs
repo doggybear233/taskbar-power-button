@@ -1,5 +1,5 @@
 // PowerButton - a safer replacement for the taskbar "shutdown" shortcut.
-// Left click  : countdown window, cancellable (shutdown /sg /t N)
+// Left click  : countdown window, cancellable; shuts down only when it reaches 0
 // Click again : cancels the pending countdown
 // Shift+click : power menu, also available as a right-click verb
 // No logging, no telemetry, no admin rights required.
@@ -35,6 +35,84 @@ namespace PowerButton
         internal static readonly IntPtr HwndBroadcast = new IntPtr(0xffff);
         internal const int WmSysCommand = 0x0112;
         internal const int ScMonitorPower = 0xF170;
+
+        // Windows 自带一个「将在 1 分钟内关机」的警告窗口，它是关机**宽限期**的提示。
+        // 直接调 ExitWindowsEx（开始菜单「关机」走的就是这条）就没有宽限期，
+        // 也就没有那个窗口——倒计时完全由本程序自己的窗口来表现。
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool OpenProcessToken(IntPtr process, uint desiredAccess, out IntPtr token);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool LookupPrivilegeValue(string system, string name, out long luid);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool AdjustTokenPrivileges(IntPtr token, bool disableAll,
+            ref TokenPrivileges newState, int bufferLength, IntPtr previousState, IntPtr returnLength);
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct TokenPrivileges
+        {
+            public int Count;
+            public long Luid;
+            public int Attributes;
+        }
+
+        private const uint TokenAdjustPrivileges = 0x0020;
+        private const uint TokenQuery = 0x0008;
+        private const int SePrivilegeEnabled = 0x0002;
+        private const uint EwxShutdown = 0x0001;
+        private const uint EwxReboot = 0x0002;
+
+        private static bool EnableShutdownPrivilege()
+        {
+            IntPtr token;
+            if (!OpenProcessToken(Process.GetCurrentProcess().Handle,
+                                  TokenAdjustPrivileges | TokenQuery, out token))
+                return false;
+
+            try
+            {
+                long luid;
+                if (!LookupPrivilegeValue(null, "SeShutdownPrivilege", out luid))
+                    return false;
+
+                TokenPrivileges state = new TokenPrivileges();
+                state.Count = 1;
+                state.Luid = luid;
+                state.Attributes = SePrivilegeEnabled;
+
+                if (!AdjustTokenPrivileges(token, false, ref state, 0, IntPtr.Zero, IntPtr.Zero))
+                    return false;
+
+                // AdjustTokenPrivileges 即使部分失败也返回 true，必须看 LastWin32Error。
+                return Marshal.GetLastWin32Error() == 0;
+            }
+            finally
+            {
+                CloseHandle(token);
+            }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        // 自检：只验证能否拿到 SeShutdownPrivilege，绝不真的关机。
+        internal static bool CanEnableShutdownPrivilege()
+        {
+            return EnableShutdownPrivilege();
+        }
+
+        // 真正执行关机 / 重启。没有宽限期，因此不会出现 Windows 的关机警告窗口。
+        internal static bool ExitShutdown(bool restart)
+        {
+            if (!EnableShutdownPrivilege())
+                return false;
+
+            return ExitWindowsEx(restart ? EwxReboot : EwxShutdown, 0);
+        }
 
         internal static void RunShutdown(string arguments)
         {
@@ -228,6 +306,9 @@ namespace PowerButton
         private bool _finished;
         private bool _cancelling;
 
+        // 倒计时走完（而不是被取消）时为 true：由调用方在这之后真正执行关机。
+        internal bool Expired;
+
         internal CountdownForm(PowerAction action, int seconds, EventWaitHandle signal, bool preview)
         {
             _action = action;
@@ -340,6 +421,7 @@ namespace PowerButton
             {
                 _finished = true;
                 _timer.Stop();
+                Expired = true;
                 Close();
             }
         }
@@ -355,18 +437,7 @@ namespace PowerButton
             _cancelling = true;
             _timer.Stop();
 
-            if (!_preview)
-            {
-                if (!Native.AbortShutdown())
-                {
-                    _cancelling = false;
-                    _detail.Text = "取消失败：关机可能已经开始";
-                    _detail.ForeColor = Color.FromArgb(255, 150, 150);
-                    _cancel.Enabled = false;
-                    return;
-                }
-            }
-
+            // 此刻还没有任何关机被排入系统，取消就是关掉这个窗口。
             _finished = true;
             System.Media.SystemSounds.Beep.Play();
             Close();
@@ -374,13 +445,8 @@ namespace PowerButton
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {
-            if (!_finished && !_preview)
-            {
-                // Window closed by something else (Alt+F4, shutdown of the desktop):
-                // never leave an un-cancellable shutdown behind.
-                Native.AbortShutdown();
-                _finished = true;
-            }
+            // 窗口被意外关闭（Alt+F4 等）等于取消：什么都不会发生。
+            if (!_finished && !_preview) _finished = true;
         }
     }
 
@@ -683,6 +749,12 @@ namespace PowerButton
                     Native.AbortShutdown();
                     return;
                 }
+                else if (a == "--selftest" || a == "/selftest")
+                {
+                    // 只检查能不能取到关机权限，不执行任何关机动作。
+                    Environment.ExitCode = Native.CanEnableShutdownPrivilege() ? 0 : 2;
+                    return;
+                }
                 else if (a == "--delay" || a == "/delay")
                 {
                     if (i + 1 < args.Length)
@@ -771,28 +843,29 @@ namespace PowerButton
                 signal = null;
             }
 
-            if (!preview)
-            {
-                string verb = action == PowerAction.Restart ? "/r" : "/sg";
-                Native.RunShutdown(verb + " /t " + seconds.ToString());
-            }
-
-            if (seconds <= 0 || preview && seconds <= 0)
+            if (!preview && seconds <= 0)
             {
                 ReleaseGuard(guard, signal);
+                Native.ExitShutdown(action == PowerAction.Restart);
                 return;
             }
 
+            CountdownForm form = null;
             try
             {
-                using (CountdownForm form = new CountdownForm(action, seconds, signal, preview))
-                {
-                    Application.Run(form);
-                }
+                form = new CountdownForm(action, seconds, signal, preview);
+                Application.Run(form);
             }
             finally
             {
                 ReleaseGuard(guard, signal);
+            }
+
+            // 只有倒计时真的走完才动手；被取消 / 窗口被关掉时什么都不做。
+            if (form != null && form.Expired && !preview)
+            {
+                if (!Native.ExitShutdown(action == PowerAction.Restart))
+                    Native.RunShutdown((action == PowerAction.Restart ? "/r" : "/sg") + " /t 0");
             }
         }
 

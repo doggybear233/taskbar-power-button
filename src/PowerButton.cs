@@ -1367,6 +1367,17 @@ namespace PowerButton
                 signal = null;
             }
 
+            // 先等一个双击窗口：第二下落在窗口内就是「双击 = 开菜单」，
+            // 这时卡片一眼都不该出现——否则会先闪一下「即将关机」再变菜单。
+            // 窗口过了才建卡片，所以倒计时本身仍是完整的 seconds 秒。
+            int clickWindow = SystemInformation.DoubleClickTime;
+            if (!preview && signal != null && clickWindow > 0 && signal.WaitOne(clickWindow))
+            {
+                ReleaseGuard(guard, signal);
+                RunMenu(Config.Delay);
+                return;
+            }
+
             if (!preview && seconds <= 0)
             {
                 ReleaseGuard(guard, signal);

@@ -18,7 +18,8 @@ First public release.
   directly.
 - Double-clicking the taskbar button skips the countdown and opens the power
   menu: the second click inside the system double-click interval is read as
-  "menu", a slower second click is still "cancel".
+  "menu", a slower second click is still "cancel". The card is created only
+  after that interval, so a double-click never flashes a shutdown window first.
 - The card and the menu dock next to the Start button. The taskbar rectangle and
   the `Start` button are read at launch, so a top, bottom, left or right taskbar,
   and a centred or left-aligned icon row, all land in the right place.

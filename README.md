@@ -16,11 +16,11 @@
 
 ---
 
-Click the power button and a five-second countdown drops in just above the taskbar, right by the Start button: a dark card, a red ring draining around the seconds, one line telling you what is about to happen. Click again — anywhere on the pin, or `Esc` — and it is gone, as if nothing had happened.
+Click the power button. A small card comes up just above the taskbar, next to Start, and a red ring counts five seconds down. Click the pin again, press `Esc`, or press Cancel in the card, and it goes away. Leave it alone and the machine shuts down.
 
-That is the whole idea. **One click to shut down, a few seconds to change your mind.** No confirmation dialog, no second click to commit, no trip back to the Start menu.
+There is no confirmation box, and nothing to press twice. You get five seconds, and the button you pressed takes them back.
 
-The card carries a second button for everything else — sleep, restart, sign out, lock, display off, shut down later. The menu is drawn in the same language as the button: same radius, same spacing, same font as the rest of Windows 11, at any DPI, in your system language.
+Double-click the button, or hold `Shift` while you click, and you get the power menu instead: sleep, restart, sign out, lock, turn off the display, shut down later. The card and the menu are drawn by the program rather than by Explorer, so they come out looking like Windows 11 at any scaling, in whatever language your system speaks.
 
 <img src="docs/screenshots/01-taskbar.png" width="133" alt="The power button next to Start">
 
@@ -34,11 +34,10 @@ The card carries a second button for everything else — sleep, restart, sign ou
 | :---: | :---: |
 | <img src="docs/screenshots/02-countdown-zh.png" width="300"><br><img src="docs/screenshots/04-menu-zh.png" width="120"> | <img src="docs/screenshots/02-countdown-ja.png" width="300"><br><img src="docs/screenshots/04-menu-ja.png" width="120"> |
 
-- **Cancel is the same button.** The countdown is dismissed from the pin you pressed, not from a window you have to go find.
-- **It never steals focus.** The card is a small always-on-top window: work behind it keeps running, and typing keeps going to the app you were using.
-- **Everything is drawn.** Ring, menu, spacing and font are the program's own, so it holds up on a 1080p laptop and a 4K desk alike.
-
-<sub>Under the hood it stays quiet: no logs, no network, no background process, no admin rights. It writes in exactly three places — the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one shell-verb key in `HKCU` — and only when you install or change a setting.</sub>
+- The cancel is the button you just pressed, not a window you have to go hunting for.
+- The card is a small always-on-top window, so it does not take focus: whatever you were typing keeps going to the app you were typing in.
+- No admin rights are involved, and no process stays behind.
+- Install writes in three places only — the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one shell-verb key under `HKCU`.
 
 ## Install
 
@@ -103,17 +102,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 | Gesture | What happens |
 | --- | --- |
-| **Left click** | Opens a countdown window (5 s by default). The machine shuts down only when it reaches zero. |
-| **Click again during the countdown** | Cancels. Windows was never asked to shut down, so there is nothing to abort. |
-| **<kbd>Esc</kbd> or *Cancel shutdown* in the card** | Same as above. |
-| **<kbd>Shift</kbd> + left click** | Opens the power menu instead of the countdown. |
-| **The *Power menu* button in the card** | Opens the same menu without waiting out the countdown. |
-| **Double-click the taskbar button** | Same as <kbd>Shift</kbd> + click: the countdown is dropped and the menu opens straight away. |
-| **Hover** | The shortcut's own tooltip, drawn by Explorer. |
+| **Left click** | Opens the countdown card (5 s by default); the machine shuts down when it reaches zero. |
+| **Click the button again** | Cancels. Windows was never told to shut down, so there is nothing to abort. |
+| **`Esc`, or *Cancel shutdown* in the card** | Same as above. |
+| **Double-click the button** | Opens the power menu immediately; the card is never shown. |
+| **`Shift` + left click** | Same as double-click. |
+| **The *Power menu* button on the card** | Reaches the same menu while the card is already open. |
+| **Hover** | Explorer's own tooltip for the shortcut. |
 
-The menu offers **Sleep · Restart · Shut down · Sign out · Lock · Turn off display · Shut down later… · Cancel shutdown · Countdown settings…**. Restart goes through the same cancellable countdown.
+The menu offers **Sleep · Restart · Shut down · Sign out · Lock · Turn off display · Shut down later… · Cancel shutdown · Countdown settings…**. Restart goes through the same countdown, so it is cancellable too.
 
-The card waits 200 ms before it appears: long enough to catch a double-click (which then goes straight to the menu, never flashing a shutdown window), short enough that a single click still feels immediate.
+Nothing appears for the first 200 ms after a click. That is what lets a double-click go straight to the menu without a shutdown window flashing up in between; a single click still feels immediate.
 
 The tooltip text and every label inside the card and menu are generated by the program in your system language, so they read naturally on a Japanese, Chinese or English machine.
 
@@ -121,16 +120,16 @@ The tooltip text and every label inside the card and menu are generated by the p
 
 | Feature | Why it exists |
 | --- | --- |
-| Cancellable countdown | Turns an irreversible instant into a reversible delay — cheaper than a confirmation dialog, because a normal shutdown needs no extra click. |
-| Second click cancels | The countdown can be dismissed from the same button you pressed; no need to find the window. |
-| Native power menu | Sleep, restart, sign out, lock and display-off work without opening the Start menu. |
-| No Windows shutdown dialog | Windows only shows its "shutting down in less than a minute" box while a shutdown is *scheduled*. This tool schedules nothing and calls `ExitWindowsEx` when the countdown ends, so no system dialog appears. |
-| No forced close | `shutdown.exe /f` and `EWX_FORCE` are never used: apps that refuse to close still get their "these apps are preventing shutdown" screen, so unsaved work is not destroyed. |
-| Same slot, same icon position | The existing `.lnk` is rewritten in place instead of creating a second pin. |
-| Localisation | The UI, the tooltip, the card, the menu and the installer follow the Windows display language. |
-| One file, no runtime | A ~400 KB WinForms executable compiled by `csc.exe`; nothing to install, nothing resident. |
-| Installs on any Windows, x86 or x64 | The installer probes `Framework64`, then `Framework`, then `ProgramFiles(x86)` for a compiler, so a 32-bit or ARM64 machine works without a per-architecture download. |
-| Leaves other shortcuts alone | It only rewrites a shortcut that targets `shutdown.exe` or this program, records the exact path it changed, and restores that same path on uninstall. |
+| Cancellable countdown | A normal power button ends everything the moment you touch it. This one waits five seconds, which costs nothing when you meant it and saves you when you did not. |
+| Cancel from the same button | No dialog to dismiss, no separate window to find: press the pin again and the countdown is gone. |
+| Power menu on double-click | Sleep, restart, sign out, lock and display-off without a detour through the Start menu. |
+| No Windows shutdown dialog | Windows shows its "shutting down in less than a minute" box whenever a shutdown is *scheduled*. This tool schedules nothing and calls `ExitWindowsEx` when the countdown reaches zero, so no system dialog appears. |
+| No forced close | `shutdown.exe /f` and `EWX_FORCE` are never used, so an app that refuses to close still gets the usual "these apps are preventing shutdown" screen and unsaved work survives. |
+| Same slot, same icon position | The existing `.lnk` is rewritten in place; no second pin appears. |
+| Speaks your language | Card, menu, tooltip and installer messages follow the Windows display language. |
+| One file, no runtime | A ~400 KB WinForms executable built by `csc.exe`. Nothing to install, nothing left running. |
+| Installs on 32-bit, 64-bit and ARM64 | The installer probes `Framework64`, then `Framework`, then `ProgramFiles(x86)` for a compiler, so one download covers every architecture. |
+| Leaves other shortcuts alone | A shortcut is only rewritten if it targets `shutdown.exe` or this program. The exact path is recorded, and the uninstaller restores that same path. |
 
 ## Configuration
 
@@ -206,7 +205,7 @@ Fonts switch with the language (`Microsoft YaHei UI`, `Yu Gothic UI`, `Segoe UI`
 
 ## Limitations
 
-- **Right-clicking the taskbar button opens Explorer's menu, not ours, and long-press does nothing.** A taskbar button belongs to Explorer; a pinned shortcut can only "start a program", and this program starts *after* the click, so it never sees press, hold or right-click events — and its registered verb does not surface on the pinned item. Real gestures would need a resident process, a `WH_MOUSE_LL` hook and recomputing the button rectangle on every resolution, DPI or monitor change. This project deliberately stays resident-free, so the three menu entry points are double-click, <kbd>Shift</kbd> + click and the *Power menu* button on the card.
+- **Right-clicking the taskbar button opens Explorer's menu, not ours, and long-press does nothing.** A taskbar button belongs to Explorer, and a pinned shortcut can only start a program; this program starts after the click, so it never sees the press, the hold, or the right-click, and the shell verb it registers does not show up on the pinned item. Handling real gestures would take a resident process, a `WH_MOUSE_LL` hook, and a button rectangle recomputed on every resolution, DPI or monitor change. This project stays resident-free on purpose, so the menu is reached by double-click, by `Shift` + click, or from the button on the card.
 - **"Shut down later…" is the one path that still uses `shutdown.exe`**, because the scheduled shutdown has to outlive this process. At the 60-second mark Windows shows its own dialog — that is inherent to scheduled shutdowns.
 - **Per-monitor DPI switching is not handled live.** The UI scales from the DPI it sees at startup; moving the window to a monitor with a different scale factor may leave it slightly large or small until restart.
 - Tested on Windows 11 24H2/25H2 at 150 % scaling. Windows 10 should work (the APIs are all long-standing) but has not been tested.

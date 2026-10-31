@@ -32,7 +32,7 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-脚本会：生成图标 → 用系统自带的 `csc.exe` 编译 `src\PowerButton.cs` → 备份原快捷方式 → 原地改写 `shutdown.lnk` → 注册右键动词 → 刷新图标缓存。
+脚本会：准备图标（复制 `icons\power.ico`，缺失时现场生成）→ 用系统自带的 `csc.exe` 编译 `src\PowerButton.cs` → 备份原快捷方式 → 原地改写 `shutdown.lnk` → 注册右键动词 → 刷新图标缓存。
 
 可重复运行（升级时直接重跑）。原快捷方式只在第一次安装时备份一次。
 
@@ -75,7 +75,10 @@ src\PowerButton.cs     主程序（C# 5，WinForms，无外部依赖）
 src\app.manifest       DPI 感知清单（150% 缩放下文字不糊）
 install.ps1            安装 / 升级
 uninstall.ps1          卸载 / 回滚
+icons\power.ico        多尺寸图标（16~256，9 个尺寸）
+tools\make-icon.ps1    重新生成 power.ico
 tools\shot.ps1         DPI 感知截图小工具（开发时验证 UI 用）
+icons\raw\             候选图标的原始 SVG（15 款，留作备选）
 ```
 
 安装后：
@@ -87,8 +90,32 @@ tools\shot.ps1         DPI 感知截图小工具（开发时验证 UI 用）
 %LOCALAPPDATA%\PowerButton\backup\shutdown.lnk.bak
 ```
 
+## 图标
+
+白圆盘 + 深色电源字形（`#1a1a1a`），字形取自 **Material Symbols Rounded** 的 `power_settings_new`（Apache-2.0）。
+
+`icons\power.ico` 里是 16/20/24/32/40/48/64/128/256 九个尺寸**各自原生渲染**的位图，不是一张大图缩出来的——任务栏用 24~40px，缩小采样会让细笔画糊掉。
+
+需要换形状或换颜色时：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\make-icon.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+脚本用 Chrome headless 渲染 SVG（自动标定字形占图标边长的比例），再把位图打成 ICO。ICO 的每个条目都是手写的 32bpp DIB，因为：
+
+- PNG 压缩条目 GDI+/Shell 不认，任务栏会显示空白占位图；
+- `GetHicon()` → `Icon.Save()` 往返会丢掉 alpha，任务栏显示成黑方块。
+
+改完图标若没立刻生效：停掉 `explorer`，删 `%LOCALAPPDATA%\Microsoft\Windows\Explorer\iconcache*.db`，再启动 `explorer`。
+
 ## 实现要点
 
 - 单实例互斥体 `Local\PowerButton.Countdown`：第一次点击启动倒计时进程，第二次点击发现互斥体已被占用，就通过命名事件 `Local\PowerButton.Countdown.Cancel` 通知第一个进程取消。
 - 窗口被意外关闭（Alt+F4、会话结束）时也会兜底 `shutdown /a`，不留下无法取消的关机。
 - 用 `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 编译，机器上不需要装 .NET SDK；`/codepage:65001` 保证源码里的中文不乱码。
+
+## 许可
+
+本仓库代码随你处置。内置图标来自 Google Material Symbols（Apache-2.0）；`icons\raw\` 下的候选依次来自 Material Symbols、Fluent UI Icons、Lucide（ISC）、Tabler、Phosphor、Bootstrap Icons、Heroicons、Carbon、Ionicons（均 MIT/Apache-2.0）与 Font Awesome Free（图标为 CC BY 4.0，如改用需署名）。

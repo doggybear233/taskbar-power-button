@@ -39,41 +39,16 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 New-Item -ItemType Directory -Force -Path $backup | Out-Null
 
 # ---------------------------------------------------------------- 图标
-Write-Step "生成图标"
-Add-Type -AssemblyName System.Drawing
-
-$size   = 64
-$bmp    = New-Object System.Drawing.Bitmap($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-$canvas = [System.Drawing.Graphics]::FromImage($bmp)
-$canvas.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$canvas.Clear([System.Drawing.Color]::Transparent)
-
-try {
-    $red  = [System.Drawing.Color]::FromArgb(255, 232, 17, 35)
-    $pen  = New-Object System.Drawing.Pen($red, 6.0)
-    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-
-    # 环形：留出顶部缺口，模拟电源符号
-    $arcBox = New-Object System.Drawing.RectangleF(9, 11, 46, 46)
-    $canvas.DrawArc($pen, $arcBox, -50, 280)
-
-    # 竖直短杠
-    $canvas.DrawLine($pen, 32, 6, 32, 27)
-
-    $pen.Dispose()
+Write-Step "安装图标"
+$iconSrc = Join-Path $root 'icons\power.ico'
+if (-not (Test-Path $iconSrc)) {
+    $maker = Join-Path $root 'tools\make-icon.ps1'
+    if (-not (Test-Path $maker)) { throw "找不到图标：$iconSrc" }
+    Write-Host "    没有现成图标，正在生成（需要 Chrome）..."
+    & $maker
+    if (-not (Test-Path $iconSrc)) { throw "图标生成失败：$iconSrc" }
 }
-finally {
-    $canvas.Dispose()
-}
-
-$hIcon = $bmp.GetHicon()
-$managed = [System.Drawing.Icon]::FromHandle($hIcon)
-$stream = [System.IO.File]::Create($icon)
-$managed.Save($stream)
-$stream.Close()
-$managed.Dispose()
-$bmp.Dispose()
+Copy-Item -Path $iconSrc -Destination $icon -Force
 Write-Host ("    " + $icon)
 
 # ---------------------------------------------------------------- 编译

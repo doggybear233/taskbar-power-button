@@ -24,7 +24,7 @@ This project replaces that shortcut with a small executable that behaves the way
 
 | Left click | Cancel | Menu |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/02-countdown-ja.png" width="330"> | click the button again · <kbd>Esc</kbd> · 中止 button | <img src="docs/screenshots/04-menu-ja.png" width="150"> |
+| <img src="docs/screenshots/02-countdown-ja.png" width="330"> | click the button again · <kbd>Esc</kbd> · or the red button in the window | <img src="docs/screenshots/04-menu-ja.png" width="150"> |
 
 - No logs, no network, no background process, no admin rights.
 - It writes in exactly three places: the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one `HKCU` context-menu entry.

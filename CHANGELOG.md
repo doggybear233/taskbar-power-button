@@ -29,11 +29,28 @@ First public release.
   scheduled shutdown, cancel shutdown and countdown settings.
 - Interface in Chinese, Japanese and English, selected automatically from the
   Windows display language and overridable through `config.ini`, the
-  `POWERBUTTON_LANG` environment variable or `--lang`.
+  `POWERBUTTON_LANG` environment variable or `--lang`. Detection reads
+  `InstalledUICulture` rather than `CurrentUICulture`, because a process started
+  from some launchers reports `en-US` even on a Japanese machine.
 - Multi-size icon (nine sizes, each rendered natively) matching the Windows
   taskbar metrics.
 - `install.ps1` / `uninstall.ps1`: rewrites the existing pinned shortcut in
   place, backs up the original on first install and restores it on uninstall.
+- `install.cmd`: a one-click wrapper, because a `.ps1` that came out of a
+  downloaded zip carries the mark of the web and the default `RemoteSigned`
+  policy refuses it. It bypasses the policy for that one run, unblocks the
+  unpacked files and keeps the window open so the result is readable.
+- The installer now explains itself in Chinese, Japanese or English, following
+  the same display-language rule as the UI.
+- `-LnkPath` and `-Force` for the installer: it looks for `shutdown.lnk`, then
+  for any pinned shortcut whose target is `shutdown.exe`, so a renamed or
+  localised shortcut is still found; anything else is left untouched unless
+  `-Force` is given. The path actually changed is recorded in
+  `backup\link.txt` and restored by the uninstaller.
+- The installer probes `Framework64`, then `Framework`, then `ProgramFiles(x86)`
+  for `csc.exe`, so 32-bit and ARM64 Windows work without a separate build, and
+  a machine without .NET Framework gets one readable sentence instead of a
+  stack trace.
 
 ### Changed
 

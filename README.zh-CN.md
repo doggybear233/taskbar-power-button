@@ -44,16 +44,47 @@
 
 ### 环境要求
 
-Windows 10 / 11（x64），.NET Framework 4.8（系统自带）。不需要 .NET SDK，不需要 Node，不需要包管理器；安装**不需要**管理员权限。
+Windows 10 / 11，64 位或 32 位（ARM64 也可以）。安装脚本用 **.NET Framework 4.x** 自带的 `csc.exe` 现场编译——这个组件每台受支持的 Windows 都有；万一被关掉了，脚本会给一句人话，而不是一段堆栈。
+
+不需要 .NET SDK，不需要 Node，不需要包管理器，安装**不需要**管理员权限。
 
 <details open>
 <summary><b>从 Release 安装（推荐）</b></summary>
 
 1. 到 [Releases](https://github.com/doggybear233/taskbar-power-button/releases) 下载 `taskbar-power-button-1.0.0.zip`，解压到任意目录。
-2. 右键 `install.ps1` → **使用 PowerShell 运行**。（或命令行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`）
+2. 双击 **`install.cmd`**。它只对这一次运行绕过执行策略，跑完会停住窗口让你看清结果。
 3. 如果任务栏图标没立刻变，注销再登录一次——快捷方式其实已经改好了，只是资源管理器的图标缓存没刷新。
 
-重跑 `install.ps1` 即原地升级。原快捷方式只在第一次安装时备份。
+重跑 `install.cmd` 即原地升级。原快捷方式只在第一次安装时备份。
+
+</details>
+
+<details>
+<summary><b>为什么不直接双击 <code>install.ps1</code>？</b></summary>
+
+可以，但刚从 zip 解压出来的文件带着「来自网络」标记，默认的 `RemoteSigned` 策略会拒绝执行这种未签名脚本。`install.cmd` 一步绕开这个问题，顺手把解压出来的文件都解锁，后面生成的快捷方式也不会被牵连。
+
+想手动来也可以：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+</details>
+
+<details>
+<summary><b>如果你的关机按钮不叫 <code>shutdown.lnk</code></b></summary>
+
+脚本先在固定项目录里找 `shutdown.lnk`；找不到就扫描该目录下所有快捷方式，挑目标为 `shutdown.exe` 的那一个——改过名字或本地化过的也能认出来。
+
+如果一个都找不到（那个按钮可能已经被取消固定），它会明说，程序照样装好，并告诉你怎样指定目标：
+
+```powershell
+.\install.ps1 -LnkPath "%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\MyPower.lnk"
+```
+
+它只会改写目标是 `shutdown.exe` 或本程序的快捷方式，其它一律不动（除非加 `-Force`）。实际改了哪个文件会记进 `backup\link.txt`，卸载时就是按它还原的。
+
 </details>
 
 <details>
@@ -66,8 +97,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 `install.ps1` 会准备图标 → 用 .NET Framework 自带的 `csc.exe` 编译 `src\PowerButton.cs` → 备份原快捷方式 → 原地改写 → 注册 `HKCU` 外壳动词 → 刷新外壳。
-</details>
 
+</details>
 ## 用法
 
 | 操作 | 结果 |
@@ -96,8 +127,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 | 不弹 Windows 关机提示 | Windows 只在关机被*排期*时才弹「将在 1 分钟内关机」；本程序不预排，倒计时结束才调 `ExitWindowsEx`，所以不弹框 |
 | 从不强杀程序 | 从不使用 `shutdown.exe /f` 或 `EWX_FORCE`：拒绝关闭的程序仍会走系统「这些应用阻止关机」那一步，未保存的工作不会被销毁 |
 | 原位替换 | 原地改写已有的 `.lnk`，不新建第二个固定项 |
-| 多语言 | 界面、悬停说明、卡片与菜单都跟随 Windows 显示语言 |
+| 多语言 | 界面、悬停说明、卡片、菜单**和安装脚本**都跟随 Windows 显示语言 |
 | 单文件、无运行时 | 约 400 KB 的 WinForms 程序，由 `csc.exe` 编译；无需安装、不常驻 |
+| 32 位 / 64 位都能装 | 安装脚本依次探测 `Framework64`、`Framework`、`ProgramFiles(x86)`，32 位和 ARM64 机器不需要单独的版本 |
+| 不碰别人的快捷方式 | 只改写目标为 `shutdown.exe` 或本程序的快捷方式，并记下实际改动的路径，卸载时还原到同一处 |
 
 ## 设置
 
@@ -157,7 +190,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\make-icon.ps1
 
 ## 多语言
 
-界面有 **中文 / 日本語 / English** 三套文案，默认跟随 Windows 显示语言（`CultureInfo.CurrentUICulture`）：`ja` → 日文，`zh` → 中文，其他 → 英文。
+界面有 **中文 / 日本語 / English** 三套文案，默认跟随 Windows 显示语言：`ja` → 日文，`zh` → 中文，其他 → 英文。安装脚本自己的提示也用同一套规则，所以日文系统上从第一行就是日文。
+
+判断用的是 `CultureInfo.InstalledUICulture`（系统显示语言），而不是 `CurrentUICulture`。这个区别是必要的：某些启动器起的进程（包括从 PowerShell 里起的子进程）在日文机器上会报 `en-US`，照它走就会悄悄选错语言。
 
 覆盖方式，优先级从低到高：
 
@@ -182,7 +217,13 @@ PowerButton.exe --lang zh
 powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
-把 `shutdown.lnk` 还原成安装时备份的原版（`shutdown.exe -s -t 0`），删掉 `HKCU` 里的动词和 `%LOCALAPPDATA%\PowerButton`。除此之外没有改动任何地方。
+把 `backup\link.txt` 里记录的那个快捷方式还原成安装时备份的原版（`shutdown.exe -s -t 0`），删掉 `HKCU` 里的动词和程序文件。`backup` 目录会保留，方便以后重装；要连它一起删就加 `-Purge`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 -Purge
+```
+
+除此之外没有改动任何地方。
 
 ## 致谢与许可
 

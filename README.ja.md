@@ -44,16 +44,47 @@
 
 ### 動作環境
 
-Windows 10 / 11（x64）、.NET Framework 4.8（Windows に標準搭載）。.NET SDK も Node もパッケージマネージャーも不要で、インストールに**管理者権限は要りません**。
+Windows 10 / 11、64 ビットでも 32 ビットでも（ARM64 も可）。インストーラーは **.NET Framework 4.x** 付属の `csc.exe` でその場でコンパイルします。この機能はサポート対象の Windows すべてに入っていますが、無効化されていた場合はスタックトレースではなく一行の説明を返します。
+
+.NET SDK も Node もパッケージマネージャーも不要、**管理者権限も不要**です。
 
 <details open>
 <summary><b>Release から入れる（推奨）</b></summary>
 
 1. [Releases](https://github.com/doggybear233/taskbar-power-button/releases) から `taskbar-power-button-1.0.0.zip` をダウンロードし、任意のフォルダーに展開します。
-2. `install.ps1` を右クリック → **PowerShell で実行**。（コマンドなら `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`）
+2. **`install.cmd`** をダブルクリックします。その 1 回だけ実行ポリシーを回避して起動し、結果を読めるようにウィンドウを開いたままにします。
 3. タスクバーのアイコンがすぐ変わらない場合は、サインアウトして入り直してください。ショートカット自体はすでに書き換わっていて、エクスプローラーのアイコンキャッシュが古いだけです。
 
-`install.ps1` をもう一度実行すればそのままアップグレードになります。元のショートカットのバックアップは初回のみです。
+`install.cmd` をもう一度実行すればそのままアップグレードになります。元のショートカットのバックアップは初回のみです。
+
+</details>
+
+<details>
+<summary><b><code>install.ps1</code> を直接ダブルクリックしないのはなぜ？</b></summary>
+
+それでも動きますが、ダウンロードした zip から出したファイルには「Web のマーク」が付き、既定の `RemoteSigned` ポリシーは署名のないスクリプトを拒否します。`install.cmd` はその 1 手間を省き、展開したファイルのブロックも解除するので、あとから作るショートカットも影響を受けません。
+
+手動でやるなら:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+</details>
+
+<details>
+<summary><b>シャットダウンのボタンが <code>shutdown.lnk</code> でない場合</b></summary>
+
+まず固定項目フォルダーの `shutdown.lnk` を探し、無ければそのフォルダーの全ショートカットを走査して、リンク先が `shutdown.exe` のものを選びます。名前を変えていたりローカライズされていても見つかります。
+
+一つも見つからない場合（ピン留めが外れている可能性）はその旨を伝え、プログラム自体は導入したうえで、対象の指定方法を示します:
+
+```powershell
+.\install.ps1 -LnkPath "%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\MyPower.lnk"
+```
+
+書き換えるのはリンク先が `shutdown.exe` か本プログラムのショートカットだけで、それ以外は `-Force` を付けない限り触りません。実際に書き換えたパスは `backup\link.txt` に記録され、アンインストールはそれを使って復元します。
+
 </details>
 
 <details>
@@ -66,8 +97,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 `install.ps1` はアイコンを用意し、.NET Framework 付属の `csc.exe` で `src\PowerButton.cs` をコンパイルし、現在のショートカットをバックアップしてから同じ場所を書き換え、`HKCU` にシェル動詞を登録して、シェルを更新します。
-</details>
 
+</details>
 ## 使い方
 
 | 操作 | 動作 |
@@ -96,8 +127,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 | Windows のシャットダウン通知を出さない | Windows が「1 分以内にシャットダウンします」と出すのは、シャットダウンが*予約*されている間だけです。このツールは予約せず、カウントダウンが 0 になってから `ExitWindowsEx` を呼ぶので、システムのダイアログは出ません |
 | 強制終了しない | `shutdown.exe /f` も `EWX_FORCE` も使いません。閉じるのを拒否するアプリは従来どおり「これらのアプリがシャットダウンを妨げています」画面に進むので、未保存の作業が消えることはありません |
 | 同じ場所・同じアイコン位置 | 既存の `.lnk` をその場で書き換えるので、ピン留めが二重になりません |
-| 多言語 | UI、ツールチップ、カードとメニューが Windows の表示言語に追従します |
+| 多言語 | UI、ツールチップ、カード、メニュー、**インストーラー**が Windows の表示言語に追従します |
 | 単一ファイル・ランタイム不要 | 約 400 KB の WinForms 実行ファイル。`csc.exe` でビルドでき、インストールも常駐もしません |
+| 32 ビットでも 64 ビットでも入る | インストーラーは `Framework64`、`Framework`、`ProgramFiles(x86)` の順に探すので、32 ビットや ARM64 用の別ビルドは要りません |
+| 他のショートカットは触らない | リンク先が `shutdown.exe` か本プログラムのものだけを書き換え、実際に変えたパスを記録して、アンインストール時に同じ場所へ戻します |
 
 ## 設定
 
@@ -157,7 +190,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\make-icon.ps1
 
 ## 多言語
 
-UI は **中文 / 日本語 / English** の 3 言語で、既定では Windows の表示言語（`CultureInfo.CurrentUICulture`）に従います。`ja` → 日本語、`zh` → 中国語、それ以外 → 英語。
+UI は **中文 / 日本語 / English** の 3 言語で、既定では Windows の表示言語に従います。`ja` → 日本語、`zh` → 中国語、それ以外 → 英語。インストーラーのメッセージも同じ規則なので、日本語の環境では最初の行から日本語です。
+
+判定には `CultureInfo.InstalledUICulture`（OS の表示言語）を使い、`CurrentUICulture` は使いません。この違いは重要です。ランチャー経由で起動したプロセス（PowerShell の子プロセスなど）は日本語の PC でも `en-US` を返すことがあり、それに従うと静かに言語を間違えます。
 
 優先度の低い順に、次の方法で上書きできます。
 
@@ -182,7 +217,13 @@ PowerButton.exe --lang zh
 powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
-`shutdown.lnk` をインストール時のバックアップ（`shutdown.exe -s -t 0`）に戻し、`HKCU` の動詞と `%LOCALAPPDATA%\PowerButton` を削除します。それ以外には触れていません。
+`backup\link.txt` に記録されたショートカットを、インストール時のバックアップ（`shutdown.exe -s -t 0`）に戻し、`HKCU` の動詞とプログラム本体を削除します。`backup` フォルダーは再インストール用に残します。それも消すなら `-Purge` を付けてください:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 -Purge
+```
+
+それ以外には触れていません。
 
 ## クレジットとライセンス
 

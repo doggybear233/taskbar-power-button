@@ -415,6 +415,23 @@ namespace PowerButton
             }
         }
 
+        // CurrentUICulture is not trustworthy: some launchers (and PowerShell
+// children) hand us en-US even on a Japanese machine. InstalledUICulture
+// is the OS display language and stays correct, so prefer it and only fall
+// back to the process culture when it does not name a real language.
+        private static string SystemLanguage()
+        {
+            try
+            {
+                string code = CultureInfo.InstalledUICulture.TwoLetterISOLanguageName;
+                if (!string.IsNullOrEmpty(code) && code.Length == 2 && code != "iv") return code;
+            }
+            catch { }
+
+            try { return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName; }
+            catch { return "en"; }
+        }
+
         internal static void Init(string overrideCode)
         {
             if (_ready) return;
@@ -423,11 +440,7 @@ namespace PowerButton
             string code = overrideCode;
             if (string.IsNullOrEmpty(code)) code = Config.Get("lang");
             if (string.IsNullOrEmpty(code)) code = Environment.GetEnvironmentVariable("POWERBUTTON_LANG");
-            if (string.IsNullOrEmpty(code))
-            {
-                try { code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName; }
-                catch { code = "en"; }
-            }
+            if (string.IsNullOrEmpty(code)) code = SystemLanguage();
 
             code = code.Trim().ToLowerInvariant();
             if (code.Length == 0 || code == "auto" || code == "system")
@@ -491,10 +504,10 @@ namespace PowerButton
                 case "menu.verb": return en ? "Power menu(&M)" : (ja ? "電源メニュー(&M)" : "电源菜单(&M)");
 
                 case "lnk.description": return en
-                    ? "Left-click: shut down after a countdown (click again to cancel)  |  Shift+click or right-click menu: power menu"
+                    ? "Click: shut down after a countdown (click again to cancel)  |  Double-click, Shift+click or the card button: power menu"
                     : (ja
-                        ? "左クリック：カウントダウン後にシャットダウン（もう一度押すと中止）　｜　Shift+クリックまたは右クリックメニュー：電源メニュー"
-                        : "左键：倒计时关机，再点一次可取消　｜　Shift+左键 或 右键菜单：电源菜单");
+                        ? "クリック：カウントダウン後にシャットダウン（もう一度押すと中止）　｜　ダブルクリック / Shift+クリック / カード上のボタン：電源メニュー"
+                        : "左键：倒计时关机，再点一次可取消　｜　双击 / Shift+左键 / 卡片上的按钮：电源菜单");
             }
 
             return key;

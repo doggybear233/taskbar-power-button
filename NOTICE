@@ -1,0 +1,24 @@
+Taskbar Power Button
+Copyright (c) 2026 doggybear233
+
+This product includes an icon derived from Material Symbols.
+
+--------------------------------------------------------------------------
+Material Symbols (power_settings_new)
+https://github.com/google/material-design-icons
+Copyright (c) Google LLC
+Licensed under the Apache License, Version 2.0
+A copy of the license is provided in licenses/Apache-2.0.txt
+
+Modifications made in this project:
+  * the glyph is placed on a white circular badge and recoloured to #1a1a1a;
+  * the badge is rasterised at nine sizes (16, 20, 24, 32, 40, 48, 64, 128,
+    256 px) and packed into icons/power.ico as 32 bpp DIB entries;
+  * the resulting file is installed as power.ico next to PowerButton.exe.
+
+During icon selection this project also rendered candidate glyphs from Fluent
+UI System Icons, Lucide (ISC), Tabler, Phosphor, Bootstrap Icons, Heroicons,
+Carbon and Ionicons (MIT or Apache-2.0) for comparison. Those renders are not
+part of the distributed source tree or binaries; only the Material Symbols
+glyph above is shipped.
+--------------------------------------------------------------------------

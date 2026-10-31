@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="540" viewBox="0 0 1180 540" font-family="Segoe UI, Inter, sans-serif">
+  <text x="40" y="46" font-size="21" font-weight="600" fill="#1c1f24">How the pieces connect</text>
+  <text x="40" y="72" font-size="14" fill="#6b7280">One shortcut, one executable, three Win32 calls. No service, no driver, no background process.</text>
+
+  <!-- column 1: Windows -->
+  <rect x="40" y="104" width="300" height="250" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="60" y="132" font-size="12.5" font-weight="700" fill="#8a8f98" letter-spacing=".08em">WINDOWS SHELL</text>
+
+  <rect x="60" y="146" width="260" height="86" rx="10" fill="#ffffff" stroke="#d9dce1"/>
+  <text x="76" y="172" font-size="13.5" font-weight="600" fill="#1c1f24">Taskbar\shutdown.lnk</text>
+  <text x="76" y="193" font-size="12" fill="#6b7280">rewritten in place, same slot,</text>
+  <text x="76" y="210" font-size="12" fill="#6b7280">same pin position</text>
+
+  <rect x="60" y="246" width="260" height="86" rx="10" fill="#ffffff" stroke="#d9dce1"/>
+  <text x="76" y="272" font-size="13.5" font-weight="600" fill="#1c1f24">Explorer context menu</text>
+  <text x="76" y="293" font-size="12" fill="#6b7280">HKCU\…\Applications\</text>
+  <text x="76" y="310" font-size="12" fill="#6b7280">PowerButton.exe\shell\menu</text>
+
+  <!-- arrows to exe -->
+  <path d="M 320 189 C 372 189, 372 236, 420 236" fill="none" stroke="#8a8f98" stroke-width="1.6" marker-end="url(#a)"/>
+  <path d="M 320 289 C 372 289, 372 262, 420 262" fill="none" stroke="#8a8f98" stroke-width="1.6" marker-end="url(#a)"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a8f98"/>
+    </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c8352c"/>
+    </marker>
+  </defs>
+
+  <!-- column 2: the exe -->
+  <rect x="424" y="104" width="300" height="250" rx="14" fill="#ffffff" stroke="#c8352c" stroke-width="1.6"/>
+  <text x="444" y="132" font-size="12.5" font-weight="700" fill="#c8352c" letter-spacing=".08em">POWERBUTTON.EXE</text>
+  <text x="444" y="160" font-size="12.5" fill="#4b5563">C# / WinForms · single ~400 KB file</text>
+  <g font-size="12" fill="#374151">
+    <rect x="444" y="176" width="260" height="30" rx="8" fill="#fdeceb" stroke="#e6a19b"/>
+    <text x="458" y="196">CountdownForm · ring + cancel</text>
+    <rect x="444" y="212" width="260" height="30" rx="8" fill="#f2f3f5" stroke="#d9dce1"/>
+    <text x="458" y="232">MenuForm · 9 power actions</text>
+    <rect x="444" y="248" width="260" height="30" rx="8" fill="#f2f3f5" stroke="#d9dce1"/>
+    <text x="458" y="268">L · zh / ja / en, auto-detected</text>
+    <rect x="444" y="284" width="260" height="30" rx="8" fill="#f2f3f5" stroke="#d9dce1"/>
+    <text x="458" y="304">Config · config.ini next to the exe</text>
+  </g>
+  <text x="444" y="336" font-size="11.5" fill="#8a8f98">named mutex + event: a second click cancels the first</text>
+
+  <!-- column 3: Win32 -->
+  <rect x="808" y="104" width="332" height="250" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="828" y="132" font-size="12.5" font-weight="700" fill="#8a8f98" letter-spacing=".08em">WIN32 / WINDOWS</text>
+
+  <path d="M 724 232 C 766 232, 766 168, 806 168" fill="none" stroke="#c8352c" stroke-width="1.8" marker-end="url(#b)"/>
+  <rect x="828" y="146" width="292" height="46" rx="9" fill="#fdeceb" stroke="#e6a19b"/>
+  <text x="842" y="166" font-size="12.5" font-weight="600" fill="#1c1f24">ExitWindowsEx</text>
+  <text x="842" y="183" font-size="11.5" fill="#8c2f27">shutdown / restart, no grace dialog</text>
+
+  <rect x="828" y="204" width="292" height="40" rx="9" fill="#ffffff" stroke="#d9dce1"/>
+  <text x="842" y="229" font-size="12.5" fill="#1c1f24">SeShutdownPrivilege (adjust token)</text>
+
+  <rect x="828" y="254" width="292" height="40" rx="9" fill="#ffffff" stroke="#d9dce1"/>
+  <text x="842" y="279" font-size="12.5" fill="#1c1f24">SetSuspendState · LockWorkStation</text>
+
+  <rect x="828" y="304" width="292" height="40" rx="9" fill="#ffffff" stroke="#d9dce1"/>
+  <text x="842" y="329" font-size="12.5" fill="#1c1f24">shutdown.exe /a · only to abort a timer</text>
+
+  <!-- footer note -->
+  <rect x="40" y="392" width="1100" height="112" rx="12" fill="#fafbfc" stroke="#e5e7eb"/>
+  <text x="60" y="418" font-size="12.5" font-weight="600" fill="#1c1f24">The shortcut is the only entry point.</text>
+  <text x="60" y="440" font-size="12.5" fill="#4b5563">Windows Taskbar shortcuts can start a program and nothing else — they cannot receive press, long-press or right-click events, and the program is not</text>
+  <text x="60" y="460" font-size="12.5" fill="#4b5563">running before the click. That is why the gestures live where they do: left click runs the exe, <tspan font-family="Cascadia Mono, Consolas, monospace" font-size="12">Shift+left click</tspan> and the shell verb open the menu.</text>
+  <text x="60" y="484" font-size="12.5" fill="#8a8f98">Uninstalling restores the original <tspan font-family="Cascadia Mono, Consolas, monospace" font-size="12">shutdown.exe -s -t 0</tspan> shortcut from a backup taken at install time.</text>
+</svg>

@@ -1,0 +1,71 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        shell: pwsh
+        run: |
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) { throw "csc.exe not found at $csc" }
+          & $csc /? | Select-Object -First 1
+
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          foreach ($file in 'install.ps1', 'uninstall.ps1', 'tools/make-icon.ps1') {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file), [ref]$null, [ref]$errors)
+            if ($errors.Count) { throw "$file has $($errors.Count) parse error(s): $($errors[0].Message)" }
+            "ok: $file"
+          }
+
+      - name: Compile PowerButton.exe
+        shell: pwsh
+        run: |
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $args = @(
+            '/nologo', '/target:winexe', '/optimize+', '/codepage:65001',
+            '/win32manifest:src\app.manifest', '/win32icon:icons\power.ico',
+            '/out:out\PowerButton.exe',
+            '/reference:System.dll', '/reference:System.Drawing.dll', '/reference:System.Windows.Forms.dll',
+            'src\PowerButton.cs'
+          )
+          & $csc @args
+          if ($LASTEXITCODE -ne 0) { throw "csc failed with exit code $LASTEXITCODE" }
+          $exe = Get-Item 'out\PowerButton.exe'
+          "built {0} ({1:N0} bytes)" -f $exe.Name, $exe.Length
+          if ($exe.Length -lt 100000) { throw "PowerButton.exe looks too small to be the real build" }
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath 'out\PowerButton.exe' -ArgumentList '--selftest' -Wait -PassThru
+          "selftest exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "selftest failed: expected 0, got $($p.ExitCode)" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PowerButton-windows-x64
+          path: |
+            out/PowerButton.exe
+            icons/power.ico
+            install.ps1
+            uninstall.ps1
+            README.md
+          if-no-files-found: error

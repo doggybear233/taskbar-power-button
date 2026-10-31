@@ -1,165 +1,179 @@
-# 电源按钮（PowerButton）
+<div align="center">
 
-把任务栏上那个「一点就立刻关机」的 `shutdown` 快捷方式，换成一个**可撤销的延迟关机按钮**。
+<img src="docs/logo.png" width="88" alt="Taskbar Power Button">
 
-- 没有日志、没有网络、没有后台服务、不需要管理员权限。
-- 写操作只有三处：`%LOCALAPPDATA%\PowerButton\` 下的程序与图标、任务栏快捷方式本身、一条 `HKCU` 右键菜单注册项。
+# Taskbar Power Button
 
-## 交互
+**A shutdown button you can take back.**
 
-| 操作 | 结果 |
-| --- | --- |
-| **左键单击** | 弹出 5 秒倒计时窗，倒数结束才真正关机 |
-| **倒计时期间再点一次** | 取消：直接关掉窗口，系统里本来就没有排入任何关机 |
-| **点窗口里的「取消关机」** | 同上 |
-| **Shift + 左键** | 打开电源菜单 |
-| **右键快捷方式 → 电源菜单** | 同上（要在右键菜单里再选一次「电源菜单」，共两次点击） |
-| **鼠标悬停** | 显示快捷方式自带的提示气泡（内容写在 `.lnk` 的备注字段里，由资源管理器绘制） |
+[![release](https://img.shields.io/badge/release-v1.0.0-c8352c)](https://github.com/doggybear233/taskbar-power-button/releases) [![platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#requirements) [![license](https://img.shields.io/badge/license-MIT-3d9970)](LICENSE) [![ui](https://img.shields.io/badge/UI-中文%20%C2%B7%20日本語%20%C2%B7%20English-555555)](#languages)
 
-电源菜单：睡眠 / 重启 / 关机 / 注销 / 锁定 / 关闭显示器 / 定时关机… / 取消关机 / 倒计时设置…
+[Install](#install) · [Usage](#usage) · [Configuration](#configuration) · [How it works](#how-it-works) · [Limitations](#limitations)
 
-重启走的是同样的倒计时，一样能取消。
+**English** · [中文](README.zh-CN.md) · [日本語](README.ja.md)
 
-### 手势的能力边界（为什么只有这几种）
+</div>
 
-任务栏按钮是**资源管理器画的一层壳**，不是这个程序自己的窗口：
+---
 
-- 按钮的按下、长按、右键都发生在资源管理器进程里；本程序是在**点击之后**才被启动的，天生收不到这些事件。
-- `.lnk` 只能表达「点一下 → 启动某个程序」。想做到「长按」或「右键直接弹菜单」，必须常驻一个后台进程 + 低级鼠标钩子（`WH_MOUSE_LL`）+ 自己算出按钮的屏幕矩形，代价是常驻内存、开机自启、每次改分辨率/DPI/多屏布局都要重算、资源管理器重启要重新挂钩。
-- 这里选择**不常驻**：只保留 `.lnk` 能力范围内的做法——左键走程序、Shift+左键走菜单、右键借助注册的 shell 动词（多一次点击）。悬停提示同样交给 `.lnk` 的备注字段，程序本身不参与。
+The Windows taskbar lets you pin a shortcut to `shutdown.exe -s -t 0`. One misclick and the machine is gone — no countdown you can stop, no chance to save anything.
 
-**不会出现 Windows 自带的「将在 1 分钟内关机」提示**：那个提示是关机*宽限期*的产物。本程序不预先把关机排进系统（不用 `shutdown /t`），倒计时完全由自己的窗口表现，数到 0 才用 `ExitWindowsEx` 发起关机——和开始菜单里的「关机」是同一条路径，没有宽限期，也就没有那个提示框。
+This project replaces that shortcut with a small executable that behaves the way a power button should: **a short countdown you can cancel, and a real power menu for everything else.**
 
-## 为什么这么设计
+<img src="docs/screenshots/01-taskbar.png" width="340" alt="The button among pinned apps">
 
-- **不加确认框**：确认框每次都要多一次点击，日常使用反而更烦；用「倒计时 + 随时可撤销」把不可逆的瞬间动作变成可逆的延迟动作。
-- **不预先排期、不用 `shutdown.exe /t`**：Windows 的「即将关机 / 1 分钟内关机」警告框属于宽限期行为，一用 `/t` 就会被拉出来。改成「自己数秒 → 到点直接调 `ExitWindowsEx`」，既没有两个倒计时打架，也没有系统弹窗。副作用是取消变得彻底干净：什么都没排进系统，关掉窗口即取消。
-- **不带 `/f`**：保留 Windows 自己的「这些应用阻止关机」保护，避免强杀丢数据。
-- **关机仍是混合关机的快速启动路径**：`EWX_SHUTDOWN` 与开始菜单「关机」一致，已注册恢复的应用（浏览器标签、编辑器）照旧能在下次登录时回来。
-- **按钮位置不变**：原地改写同一个 `.lnk` 文件，任务栏固定位置、图标位置都不动。
+| Left click | Cancel | Menu |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/02-countdown-ja.png" width="330"> | click the button again · <kbd>Esc</kbd> · 中止 button | <img src="docs/screenshots/04-menu-ja.png" width="150"> |
 
-## 安装
+- No logs, no network, no background process, no admin rights.
+- It writes in exactly three places: the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one `HKCU` context-menu entry.
+- The pinned slot, the icon position and the shortcut path stay exactly where they are.
+
+## Install
+
+### Requirements
+
+Windows 10 or 11 (x64), .NET Framework 4.8 (shipped with Windows). No .NET SDK, no Node, no package manager. Installation does **not** need administrator rights.
+
+<details open>
+<summary><b>From a release (recommended)</b></summary>
+
+1. Download `taskbar-power-button-1.0.0.zip` from [Releases](https://github.com/doggybear233/taskbar-power-button/releases) and unzip it anywhere.
+2. Right-click `install.ps1` → **Run with PowerShell**. (Or: `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`)
+3. If the taskbar icon does not change immediately, sign out and back in — the shortcut is already correct, only Explorer's icon cache is stale.
+
+Running `install.ps1` again upgrades in place. The original shortcut is only backed up on the first install.
+</details>
+
+<details>
+<summary><b>From source</b></summary>
 
 ```powershell
+git clone https://github.com/doggybear233/taskbar-power-button.git
+cd taskbar-power-button
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-脚本会：准备图标（复制 `icons\power.ico`，缺失时现场生成）→ 用系统自带的 `csc.exe` 编译 `src\PowerButton.cs` → 备份原快捷方式 → 原地改写 `shutdown.lnk` → 注册右键动词 → 刷新图标缓存。
+`install.ps1` copies or regenerates the icon, compiles `src\PowerButton.cs` with the `csc.exe` that ships with .NET Framework, backs up your current shortcut, rewrites it in place, registers the context-menu verb, and refreshes the shell.
+</details>
 
-可重复运行（升级时直接重跑）。原快捷方式只在第一次安装时备份一次。
+## Usage
 
-如果任务栏图标没立刻变化，注销/重启一次资源管理器即可（快捷方式已经改好了，只是图标缓存）。
+| Gesture | What happens |
+| --- | --- |
+| **Left click** | Opens a countdown window (5 s by default). The machine shuts down only when it reaches zero. |
+| **Click again during the countdown** | Cancels. Windows was never asked to shut down, so there is nothing to abort. |
+| **<kbd>Esc</kbd> or the button in the window** | Same as above. |
+| **<kbd>Shift</kbd> + left click** | Opens the power menu. |
+| **Right click the taskbar button → *Power menu*** | Opens the same menu (this costs two clicks: the Explorer menu, then the verb). |
+| **Hover** | The shortcut's own tooltip, drawn by Explorer. |
 
-## 卸载 / 回滚
+The menu offers **Sleep · Restart · Shut down · Sign out · Lock · Turn off display · Shut down later… · Cancel shutdown · Countdown settings…**. Restart goes through the same cancellable countdown.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
-```
+Both the tooltip text and the context-menu label are generated by the program in your system language, so they read naturally on a Japanese, Chinese or English machine.
 
-会把 `shutdown.lnk` 还原成备份里的原版（指向 `shutdown.exe -s -t 0`），删掉 `HKCU` 注册项和 `%LOCALAPPDATA%\PowerButton` 目录。
+## Features
 
-## 自定义倒计时
+| Feature | Why it exists |
+| --- | --- |
+| Cancellable countdown | Turns an irreversible instant into a reversible delay — cheaper than a confirmation dialog, because a normal shutdown needs no extra click. |
+| Second click cancels | The countdown can be dismissed from the same button you pressed; no need to find the window. |
+| Native power menu | Sleep, restart, sign out, lock and display-off work without opening the Start menu. |
+| No Windows shutdown dialog | Windows only shows its "shutting down in less than a minute" box while a shutdown is *scheduled*. This tool schedules nothing and calls `ExitWindowsEx` when the countdown ends, so no system dialog appears. |
+| No forced close | `shutdown.exe /f` and `EWX_FORCE` are never used: apps that refuse to close still get their "these apps are preventing shutdown" screen, so unsaved work is not destroyed. |
+| Same slot, same icon position | The existing `.lnk` is rewritten in place instead of creating a second pin. |
+| Localisation | The UI, the tooltip and the context-menu label follow the Windows display language. |
+| One file, no runtime | A ~400 KB WinForms executable compiled by `csc.exe`; nothing to install, nothing resident. |
 
-右键 → 电源菜单 → **倒计时设置…**，可选 3 / 5 / 8 / 10 / 15 秒，写入 `%LOCALAPPDATA%\PowerButton\config.ini`：
+## Configuration
+
+**Countdown settings…** in the menu writes `%LOCALAPPDATA%\PowerButton\config.ini`:
 
 ```ini
 delay=5
 lang=auto
 ```
 
-`delay=0` 表示立即执行（不建议）。
+`delay` accepts 0–120 seconds (`0` means "shut down immediately" — not recommended). `lang` accepts `auto`, `zh`, `ja`, `en`.
 
-## 命令行参数（调试用）
-
-```
-PowerButton.exe                  # 左键行为：倒计时关机
-PowerButton.exe --menu           # 直接打开电源菜单
-PowerButton.exe --preview 30     # 只显示 30 秒倒计时窗口，不真的关机
-PowerButton.exe --cancel         # 取消「定时关机」排下的关机（shutdown /a）
-PowerButton.exe --delay 8        # 本次用 8 秒
-PowerButton.exe --selftest       # 只检查能否取得关机权限，退出码 0=正常 2=失败
-PowerButton.exe --set-description <lnk> <文本>   # 写快捷方式备注（安装脚本用）
-PowerButton.exe --set-description <lnk> --file <utf8 文件>   # 同上，避开命令行空格拆分
-PowerButton.exe --lnk-probe <lnk> <输出文件>     # 把 .lnk 里的备注原样读出来核对
-PowerButton.exe --lang ja|zh|en     # 临时指定界面语言（默认跟随 Windows 显示语言）
-PowerButton.exe --label-out <键> <输出文件>   # 按当前语言导出文案（install.ps1 用）
-```
-
-`--preview` 是唯一安全的可视化测试方式：它完整走倒计时窗口、取消按钮、再点一次取消的逻辑，只是不执行关机。
-
-`--selftest` 用来验证 `SeShutdownPrivilege` 能不能拿到（`ExitWindowsEx` 的前置条件），不会关机。
-
-## 文件
+## Command line
 
 ```
-src\PowerButton.cs     主程序（C# 5，WinForms，无外部依赖）
-src\app.manifest       DPI 感知清单（150% 缩放下文字不糊）
-install.ps1            安装 / 升级
-uninstall.ps1          卸载 / 回滚
-icons\power.ico        多尺寸图标（16~256，9 个尺寸）
-tools\make-icon.ps1    重新生成 power.ico
-tools\shot.ps1         DPI 感知截图小工具（开发时验证 UI 用）
-icons\raw\             候选图标的原始 SVG（15 款，留作备选）
+PowerButton.exe                     left-click behaviour: countdown, then shut down
+PowerButton.exe --menu              open the power menu
+PowerButton.exe --preview 30        show a 30 s countdown without shutting down
+PowerButton.exe --cancel            abort a shutdown scheduled from the menu (shutdown /a)
+PowerButton.exe --delay 8           use 8 s for this run
+PowerButton.exe --lang ja|zh|en     override the UI language for this run
+PowerButton.exe --selftest          check that SeShutdownPrivilege can be acquired (0 = ok, 2 = failed)
+PowerButton.exe --set-description <lnk> <text>     write a shortcut description (used by the installer)
+PowerButton.exe --lnk-probe <lnk> <out>          read a shortcut description back
+PowerButton.exe --label-out <key> <file>         export one UI string in the current language
 ```
 
-安装后：
+`--preview` is the safe way to look at the UI: it runs the real countdown window and cancel logic and simply never shuts down. `--selftest` verifies the privilege `ExitWindowsEx` needs, without shutting down either.
 
+## How it works
+
+<img src="docs/diagrams/flow.png" alt="State diagram: click, countdown, cancel or expire">
+
+<img src="docs/diagrams/architecture.png" alt="Architecture: shortcut, executable, Win32 calls">
+
+A click starts the process; the process counts down; only at zero does it raise `SeShutdownPrivilege` and call `ExitWindowsEx(EWX_SHUTDOWN)`. Cancelling closes the window, and because nothing was ever registered with Windows, cancelling really means *nothing happened*.
+
+## Build
+
+```powershell
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /optimize+ `
+  /codepage:65001 /win32manifest:src\app.manifest /win32icon:icons\power.ico `
+  /out:%LOCALAPPDATA%\PowerButton\PowerButton.exe `
+  /reference:System.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll `
+  src\PowerButton.cs
 ```
-%LOCALAPPDATA%\PowerButton\PowerButton.exe
-%LOCALAPPDATA%\PowerButton\power.ico
-%LOCALAPPDATA%\PowerButton\config.ini           # 首次改设置后生成
-%LOCALAPPDATA%\PowerButton\backup\shutdown.lnk.bak
-```
 
-## 图标
+No SDK and no project file: `csc.exe` is part of .NET Framework, which every Windows 10/11 machine already has. `/codepage:65001` is required because the source is UTF-8. CI runs the same command — see [`.github/workflows/build.yml`](.github/workflows/build.yml).
 
-白圆盘 + 深色电源字形（`#1a1a1a`），字形取自 **Material Symbols Rounded** 的 `power_settings_new`（Apache-2.0）。
-
-`icons\power.ico` 里是 16/20/24/32/40/48/64/128/256 九个尺寸**各自原生渲染**的位图，不是一张大图缩出来的——任务栏用 24~40px，缩小采样会让细笔画糊掉。
-
-需要换形状或换颜色时：
+Regenerating the icon:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\make-icon.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-脚本用 Chrome headless 渲染 SVG（自动标定字形占图标边长的比例），再把位图打成 ICO。ICO 的每个条目都是手写的 32bpp DIB，因为：
+`icons\power.ico` holds nine sizes (16, 20, 24, 32, 40, 48, 64, 128, 256), each rasterised at its own size rather than downscaled from one bitmap, because the taskbar renders 24–40 px and thin strokes turn to mush when sampled down. Every ICO entry is a hand-written 32 bpp DIB: GDI+ and the shell reject PNG-compressed entries (blank tile), and an `GetHicon()` → `Icon.Save()` round trip silently drops the alpha channel (black square).
 
-- PNG 压缩条目 GDI+/Shell 不认，任务栏会显示空白占位图；
-- `GetHicon()` → `Icon.Save()` 往返会丢掉 alpha，任务栏显示成黑方块。
+## Languages
 
-改完图标若没立刻生效：停掉 `explorer`，删 `%LOCALAPPDATA%\Microsoft\Windows\Explorer\iconcache*.db`，再启动 `explorer`。
+The interface ships in **中文 / 日本語 / English** and follows the Windows display language (`CultureInfo.CurrentUICulture`): `ja` → Japanese, `zh` → Chinese, anything else → English.
 
-## 实现要点
-
-- 单实例互斥体 `Local\PowerButton.Countdown`：第一次点击启动倒计时进程，第二次点击发现互斥体已被占用，就通过命名事件 `Local\PowerButton.Countdown.Cancel` 通知第一个进程取消。
-- 倒计时期间系统侧什么都没发生，所以取消 = 关闭窗口；真正关机发生在倒计时归零之后，由 `ExitWindowsEx(EWX_SHUTDOWN)` 发起（`SeShutdownPrivilege` 在调用前临时启用）。这条 API 失败时退回到 `shutdown /sg /t 0`。
-- 定时关机是例外：它需要关机进程在后代进程退出后仍存活，所以仍然用 `shutdown /sg /t N`，到剩余 1 分钟时会出现 Windows 的警告框——这是排期关机的固有行为。
-- 用 `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 编译，机器上不需要装 .NET SDK；`/codepage:65001` 保证源码里的中文不乱码。
-- **快捷方式备注必须绕开 `WScript.Shell`**：它按系统 ANSI 代码页写 `.lnk`，在日文（CP932）系统上「键、计、时、关、电、单」这些简体字会变成 `?`。程序里改用 `IShellLinkW` + `IPersistFile`（全程 UTF-16）：先 `Load` 原文件、再 `SetDescription`、再 `Save`——不 `Load` 直接保存会写出一个**空链接**，把目标、参数、图标一起抹掉。写完还会读回来逐字核对，不一致就报错，避免静默失败。
-- 给 GUI 程序传参时注意：`Start-Process -ArgumentList` 不会替含空格的路径加引号（`...\Quick Launch\...` 就有空格），要自己拼 `"`。
-
-## 许可
-
-本仓库代码随你处置。内置图标来自 Google Material Symbols（Apache-2.0）；`icons\raw\` 下的候选依次来自 Material Symbols、Fluent UI Icons、Lucide（ISC）、Tabler、Phosphor、Bootstrap Icons、Heroicons、Carbon、Ionicons（均 MIT/Apache-2.0）与 Font Awesome Free（图标为 CC BY 4.0，如改用需署名）。
-
-
-## 多语言 / Languages
-
-界面有**中文、日本語、English** 三套文案，默认跟随 Windows 显示语言（`CultureInfo.CurrentUICulture`）：
-`ja` → 日本語，`zh` → 中文，其他 → English。本机是 `ja-JP`，所以装完默认就是日文界面。
-
-想换语言，三种办法（优先级从高到低）：
+Override it, in ascending priority:
 
 ```powershell
-PowerButton.exe --lang zh                     # 临时：只对这一条命令生效
-$env:POWERBUTTON_LANG = 'zh'                  # 临时：对当前会话里启动的程序生效
-# %LOCALAPPDATA%\PowerButton\config.ini 里写 lang=zh（或 ja / en / auto）
+# %LOCALAPPDATA%\PowerButton\config.ini → lang=zh
+$env:POWERBUTTON_LANG = 'zh'
+PowerButton.exe --lang zh
 ```
 
-细节：
+Fonts switch with the language (`Microsoft YaHei UI`, `Yu Gothic UI`, `Segoe UI`) so Japanese kanji are not drawn with Chinese glyph shapes, and the menu measures its widest item so long Japanese labels are never clipped. To refresh the tooltip and the context-menu label after switching, re-run `install.ps1`.
 
-- 字体按语言切换：中文 `Microsoft YaHei UI`、日文 `Yu Gothic UI`、英文 `Segoe UI`——混用会出现「借字形」（日文汉字用中文字形渲染）的问题。
-- 菜单宽度按最长的一条量出来，日文 `時間を指定してシャットダウン…` 不会被截断。
-- 快捷方式悬停说明（`.lnk` 备注）和右键动词名也由程序按同一语言生成，装完即是系统语言的写法；换语言后重跑一次 `install.ps1` 即可刷新这两处。
+## Limitations
+
+- **Long-press and direct right-click are not supported.** A taskbar button belongs to Explorer; a pinned shortcut can only "start a program", and this program starts *after* the click, so it never sees press, hold or right-click events. Real gestures would need a resident process, a `WH_MOUSE_LL` hook and recomputing the button rectangle on every resolution, DPI or monitor change. This project deliberately stays resident-free; the second entry point is <kbd>Shift</kbd> + click.
+- **"Shut down later…" is the one path that still uses `shutdown.exe`**, because the scheduled shutdown has to outlive this process. At the 60-second mark Windows shows its own dialog — that is inherent to scheduled shutdowns.
+- **Per-monitor DPI switching is not handled live.** The UI scales from the DPI it sees at startup; moving the window to a monitor with a different scale factor may leave it slightly large or small until restart.
+- Tested on Windows 11 24H2/25H2 at 150 % scaling. Windows 10 should work (the APIs are all long-standing) but has not been tested.
+
+## Uninstall
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+
+This restores `shutdown.lnk` from the backup taken at install time (`shutdown.exe -s -t 0`), deletes the `HKCU` verb and removes `%LOCALAPPDATA%\PowerButton`. Nothing else was ever touched.
+
+## Credits & licenses
+
+- Code: [MIT](LICENSE).
+- Icon: the power glyph is `power_settings_new` from **Material Symbols** (Google LLC, Apache-2.0), modified into a white disc badge and rasterised into the nine ICO sizes. See [NOTICE](NOTICE) and [licenses/Apache-2.0.txt](licenses/Apache-2.0.txt).
+- The candidate glyphs in `icons/raw/` came from Material Symbols, Fluent UI System Icons, Lucide (ISC), Tabler, Phosphor, Bootstrap Icons, Heroicons, Carbon and Ionicons (MIT/Apache-2.0) while choosing a design; only the Material Symbols glyph is shipped.
+- Not affiliated with Microsoft. `shutdown.exe`, `ExitWindowsEx` and Windows are Microsoft's; this project only drives them.

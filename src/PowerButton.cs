@@ -369,6 +369,7 @@ namespace PowerButton
                 case "preview.button": return en ? "Close preview" : (ja ? "プレビューを閉じる" : "关闭预览");
                 case "cancel.shutdown": return en ? "Cancel shutdown" : (ja ? "シャットダウンを中止" : "取消关机");
                 case "cancel.restart": return en ? "Cancel restart" : (ja ? "再起動を中止" : "取消重启");
+                case "card.menu": return en ? "Power menu" : (ja ? "電源メニュー" : "电源菜单");
 
                 case "menu.sleep": return en ? "Sleep" : (ja ? "スリープ" : "睡眠");
                 case "menu.restart": return en ? "Restart" : (ja ? "再起動" : "重启");
@@ -605,12 +606,16 @@ namespace PowerButton
         private readonly Label _caption = new Label();
         private readonly Label _detail = new Label();
         private readonly Button _cancel = new Button();
+        private readonly Button _menu = new Button();
 
         private bool _finished;
         private bool _cancelling;
 
         // 倒计时走完（而不是被取消）时为 true：由调用方在这之后真正执行关机。
         internal bool Expired;
+
+        // 卡片上的「电源菜单」被点时置位：取消这次倒计时，改由调用方打开菜单。
+        internal bool OpenMenuRequested;
 
         internal CountdownForm(PowerAction action, int seconds, EventWaitHandle signal, bool preview)
         {
@@ -645,7 +650,7 @@ namespace PowerButton
                 ? L.T("preview.hint")
                 : L.T("cancel.hint");
 
-            _cancel.SetBounds(Ui.P(18), Ui.P(112), Ui.P(344), Ui.P(34));
+            _cancel.SetBounds(Ui.P(18), Ui.P(112), Ui.P(218), Ui.P(34));
             _cancel.FlatStyle = FlatStyle.Flat;
             _cancel.FlatAppearance.BorderSize = 0;
             _cancel.FlatAppearance.MouseOverBackColor = Color.FromArgb(198, 12, 28);
@@ -657,10 +662,25 @@ namespace PowerButton
             _cancel.Cursor = Cursors.Hand;
             _cancel.Click += OnCancelClick;
 
+            // 右键在任务栏固定项上归 Explorer 管，快捷方式收不到；菜单挂在卡片上，
+            // 一次点击关机、再一眼就能看到菜单入口。
+            _menu.SetBounds(Ui.P(242), Ui.P(112), Ui.P(120), Ui.P(34));
+            _menu.FlatStyle = FlatStyle.Flat;
+            _menu.FlatAppearance.BorderSize = 0;
+            _menu.FlatAppearance.MouseOverBackColor = Color.FromArgb(78, 78, 78);
+            _menu.BackColor = Color.FromArgb(54, 54, 54);
+            _menu.ForeColor = Color.FromArgb(224, 224, 224);
+            _menu.Font = new Font(L.FontFamily, 9f);
+            _menu.Text = L.T("card.menu");
+            _menu.Cursor = Cursors.Hand;
+            _menu.Visible = !preview;
+            _menu.Click += OnMenuClick;
+
             Controls.Add(_ring);
             Controls.Add(_caption);
             Controls.Add(_detail);
             Controls.Add(_cancel);
+            Controls.Add(_menu);
 
             _timer.Interval = 40;
             _timer.Tick += OnTick;
@@ -732,6 +752,16 @@ namespace PowerButton
         private void OnCancelClick(object sender, EventArgs e)
         {
             RequestCancel();
+        }
+
+        private void OnMenuClick(object sender, EventArgs e)
+        {
+            if (_finished || _cancelling) return;
+            _cancelling = true;
+            _timer.Stop();
+            _finished = true;
+            OpenMenuRequested = true;
+            Close();
         }
 
         private void RequestCancel()
@@ -1249,6 +1279,12 @@ namespace PowerButton
             }
 
             // 只有倒计时真的走完才动手；被取消 / 窗口被关掉时什么都不做。
+            if (form != null && form.OpenMenuRequested)
+            {
+                RunMenu(Config.Delay);
+                return;
+            }
+
             if (form != null && form.Expired && !preview)
             {
                 if (!Native.ExitShutdown(action == PowerAction.Restart))

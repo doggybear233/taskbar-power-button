@@ -132,7 +132,7 @@ if (Test-Path $link) {
     if ($fix.ExitCode -ne 0) { throw ("写入快捷方式备注失败（退出码 " + $fix.ExitCode + "）") }
 }
 # ---------------------------------------------------------------- 右键动词
-Write-Step "注册右键菜单命令"
+Write-Step "注册外壳动词"
 $verb = 'HKCU:\Software\Classes\Applications\PowerButton.exe\shell\menu'
 New-Item -Path $verb -Force | Out-Null
 Set-ItemProperty -Path $verb -Name '(Default)' -Value $verbText
@@ -158,5 +158,5 @@ if (Test-Path $link) {
 }
 Write-Host ""
 Write-Host "左键单击：5 秒倒计时关机，期间再点一次任务栏按钮即可取消。" -ForegroundColor Gray
-Write-Host "Shift+左键 或 右键：电源菜单（睡眠/重启/关机/注销/锁定/关屏/定时/取消）。" -ForegroundColor Gray
+Write-Host "Shift+左键，或倒计时卡片上的「电源菜单」按钮：睡眠/重启/关机/注销/锁定/关屏/定时/取消。" -ForegroundColor Gray
 Write-Host "如果任务栏图标没有立刻更新，注销或重启一次资源管理器即可。" -ForegroundColor Gray

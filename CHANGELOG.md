@@ -13,6 +13,9 @@ First public release.
 - Cancellable countdown before shutting down (5 s by default, configurable
   0–120 s), with three ways to abort: click the taskbar button again, press
   <kbd>Esc</kbd>, or use the button inside the countdown window.
+- A *Power menu* button on the countdown card that opens the power menu without
+  waiting for the countdown. <kbd>Shift</kbd> + click opens the same menu
+  directly.
 - Power menu with sleep, restart, shut down, sign out, lock, turn off display,
   scheduled shutdown, cancel shutdown and countdown settings.
 - Interface in Chinese, Japanese and English, selected automatically from the
@@ -30,10 +33,13 @@ First public release.
   countdown reaches zero, so Windows never shows its own "shutting down in less
   than a minute" dialog and cancelling leaves nothing registered with the
   operating system.
-- The shortcut description and the context-menu verb are written through
+- The shortcut description and a shell verb in `HKCU` are written through
   `IShellLinkW`/`IPersistFile` in UTF-16. `WScript.Shell` writes `.lnk` files in
   the system ANSI code page, which turned parts of the Chinese description into
   `?` on a Japanese (CP932) system.
+- The taskbar button's right-click menu belongs to Explorer and cannot be
+  replaced from a pinned shortcut, so the docs now point at <kbd>Shift</kbd> +
+  click and the card's *Power menu* button instead of claiming right-click.
 
 ### Notes
 

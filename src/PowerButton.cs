@@ -8,9 +8,11 @@
 //   csc /target:winexe /codepage:65001 /win32icon:power.ico /out:PowerButton.exe PowerButton.cs
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -126,7 +128,7 @@ namespace PowerButton
             }
             catch (Exception ex)
             {
-                MessageDlg.Error("无法调用 shutdown.exe：" + ex.Message);
+                MessageDlg.Error(L.T("err.shutdownExe") + ex.Message);
             }
         }
 
@@ -226,7 +228,7 @@ namespace PowerButton
             IntPtr ptr;
             int hr = CoCreateInstance(ref clsid, IntPtr.Zero, 1 /*CLSCTX_INPROC_SERVER*/, ref iid, out ptr);
             if (hr != 0 || ptr == IntPtr.Zero)
-                throw new COMException("CoCreateInstance 失败", hr);
+                throw new COMException("CoCreateInstance failed", hr);
 
             try
             {
@@ -295,15 +297,152 @@ namespace PowerButton
         }
     }
 
-    internal static class MessageDlg
-    {        internal static void Info(string text)
+    // 界面文案：中文 / 日本語 / English。
+    // 语言按系统显示语言自动选择；可用 config.ini 的 lang= 或环境变量 POWERBUTTON_LANG 覆盖。
+    internal static class L
+    {
+        internal enum Lang { Zh, Ja, En }
+
+        private static Lang _lang = Lang.Zh;
+        private static bool _ready;
+
+        internal static Lang Current { get { return _lang; } }
+
+        internal static bool IsCjk
         {
-            MessageBox.Show(text, "电源", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            get { return _lang == Lang.Zh || _lang == Lang.Ja; }
+        }
+
+        // 字体要和语言匹配：雅黑排日文汉字、Yu Gothic 排中文都会出现「借字形」，字形不对。
+        internal static string FontFamily
+        {
+            get
+            {
+                if (_lang == Lang.Ja) return "Yu Gothic UI";
+                if (_lang == Lang.En) return "Segoe UI";
+                return "Microsoft YaHei UI";
+            }
+        }
+
+        internal static void Init(string overrideCode)
+        {
+            if (_ready) return;
+            _ready = true;
+
+            string code = overrideCode;
+            if (string.IsNullOrEmpty(code)) code = Config.Get("lang");
+            if (string.IsNullOrEmpty(code)) code = Environment.GetEnvironmentVariable("POWERBUTTON_LANG");
+            if (string.IsNullOrEmpty(code))
+            {
+                try { code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName; }
+                catch { code = "en"; }
+            }
+
+            code = code.Trim().ToLowerInvariant();
+            if (code.Length == 0 || code == "auto" || code == "system")
+            {
+                try { code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Trim().ToLowerInvariant(); }
+                catch { code = "en"; }
+            }
+
+            if (code.StartsWith("zh")) _lang = Lang.Zh;
+            else if (code.StartsWith("ja")) _lang = Lang.Ja;
+            else _lang = Lang.En;
+        }
+
+        internal static string T(string key)
+        {
+            bool ja = _lang == Lang.Ja;
+            bool en = _lang == Lang.En;
+
+            switch (key)
+            {
+                case "app": return en ? "Power" : (ja ? "電源" : "电源");
+
+                case "preview.title": return en ? "Preview — no action" : (ja ? "プレビュー（実行しません）" : "预览（不会执行）");
+                case "shutdown.title": return en ? "Shutting down" : (ja ? "まもなくシャットダウン" : "即将关机");
+                case "restart.title": return en ? "Restarting" : (ja ? "まもなく再起動" : "即将重启");
+                case "preview.hint": return en ? "Interface check only — nothing will happen"
+                    : (ja ? "画面の確認用です。シャットダウンはしません" : "仅测试界面，不会关机");
+                case "cancel.hint": return en ? "Click the taskbar button again to cancel"
+                    : (ja ? "タスクバーのボタンをもう一度押すと中止できます" : "再次点击任务栏按钮可取消");
+                case "preview.button": return en ? "Close preview" : (ja ? "プレビューを閉じる" : "关闭预览");
+                case "cancel.shutdown": return en ? "Cancel shutdown" : (ja ? "シャットダウンを中止" : "取消关机");
+                case "cancel.restart": return en ? "Cancel restart" : (ja ? "再起動を中止" : "取消重启");
+
+                case "menu.sleep": return en ? "Sleep" : (ja ? "スリープ" : "睡眠");
+                case "menu.restart": return en ? "Restart" : (ja ? "再起動" : "重启");
+                case "menu.shutdown": return en ? "Shut down" : (ja ? "シャットダウン" : "关机");
+                case "menu.signout": return en ? "Sign out" : (ja ? "サインアウト" : "注销");
+                case "menu.lock": return en ? "Lock" : (ja ? "ロック" : "锁定");
+                case "menu.displayoff": return en ? "Turn off display" : (ja ? "ディスプレイをオフ" : "关闭显示器");
+                case "menu.timer": return en ? "Shut down later…" : (ja ? "時間を指定してシャットダウン…" : "定时关机…");
+                case "menu.cancel": return en ? "Cancel shutdown" : (ja ? "シャットダウンを中止" : "取消关机");
+                case "menu.delay": return en ? "Countdown settings…" : (ja ? "カウントダウン設定…" : "倒计时设置…");
+
+                case "msg.nothingPending": return en ? "There is no shutdown or restart pending."
+                    : (ja ? "実行待ちのシャットダウン／再起動はありません。" : "当前没有等待执行的关机或重启。");
+
+                case "err.shutdownExe": return en ? "Could not run shutdown.exe: "
+                    : (ja ? "shutdown.exe を実行できません：" : "无法调用 shutdown.exe：");
+                case "err.generic": return en ? "Power button error: "
+                    : (ja ? "電源ボタンでエラーが発生しました：" : "电源按钮出错：");
+
+                case "config.header": return en ? "# Power button settings" : (ja ? "# 電源ボタンの設定" : "# 电源按钮设置");
+                case "config.delay": return en ? "# delay = seconds to wait after a left click (0 = act immediately, not recommended)"
+                    : (ja ? "# delay = 左クリック後に待つ秒数。0 は即時実行（非推奨）"
+                          : "# delay = 左键单击后等待的秒数，0 表示立即执行（不建议）");
+                case "config.lang": return en ? "# lang = zh / ja / en / auto (auto follows the Windows display language)"
+                    : (ja ? "# lang = zh / ja / en / auto（auto は Windows の表示言語に従う）"
+                          : "# lang = zh / ja / en / auto（auto 跟随 Windows 显示语言）");
+
+                case "menu.verb": return en ? "Power menu(&M)" : (ja ? "電源メニュー(&M)" : "电源菜单(&M)");
+
+                case "lnk.description": return en
+                    ? "Left-click: shut down after a countdown (click again to cancel)  |  Shift+click or right-click menu: power menu"
+                    : (ja
+                        ? "左クリック：カウントダウン後にシャットダウン（もう一度押すと中止）　｜　Shift+クリックまたは右クリックメニュー：電源メニュー"
+                        : "左键：倒计时关机，再点一次可取消　｜　Shift+左键 或 右键菜单：电源菜单");
+            }
+
+            return key;
+        }
+
+        internal static string TimerItem(int minutes)
+        {
+            if (_lang == Lang.Ja) return minutes + " 分後にシャットダウン";
+            if (_lang == Lang.En) return "Shut down in " + minutes + " min";
+            return minutes + " 分钟后关机";
+        }
+
+        internal static string DelayItem(int seconds, bool current)
+        {
+            string unit = _lang == Lang.En ? " s" : " 秒";
+            string suffix = "";
+            if (current) suffix = _lang == Lang.En ? "  (current)" : (_lang == Lang.Ja ? "（現在）" : "（当前）");
+            return seconds + unit + suffix;
+        }
+
+        internal static string ScheduledInfo(int minutes)
+        {
+            if (_lang == Lang.Ja)
+                return minutes + " 分後にシャットダウンするよう設定しました。\n\n中止する場合は、右クリックメニューの「シャットダウンを中止」から。";
+            if (_lang == Lang.En)
+                return "Shutdown scheduled in " + minutes + " minutes.\n\nTo cancel early, use \u201cCancel shutdown\u201d in the right-click menu.";
+            return "已安排在 " + minutes + " 分钟后关机。\n\n要提前撤销，用右键菜单里的「取消关机」。";
+        }
+    }
+
+    internal static class MessageDlg
+    {
+        internal static void Info(string text)
+        {
+            MessageBox.Show(text, L.T("app"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         internal static void Error(string text)
         {
-            MessageBox.Show(text, "电源", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(text, L.T("app"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -313,14 +452,17 @@ namespace PowerButton
         private static readonly string Path =
             System.IO.Path.Combine(Program.BaseDir, "config.ini");
 
-        private static int _delay = -1;
+        private static Dictionary<string, string> _map;
+        private static bool _loaded;
 
-        internal static int Delay
+        // 全部键值都保留在内存里，写回时整份重写（config.ini 只有一两行，够用）。
+        private static Dictionary<string, string> Map
         {
             get
             {
-                if (_delay > 0) return _delay;
-                _delay = 5;
+                if (_loaded) return _map;
+                _loaded = true;
+                _map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
                     if (File.Exists(Path))
@@ -332,33 +474,61 @@ namespace PowerButton
                             if (line.Length == 0 || line.StartsWith("#")) continue;
                             int eq = line.IndexOf('=');
                             if (eq <= 0) continue;
-                            if (!line.Substring(0, eq).Trim().Equals("delay", StringComparison.OrdinalIgnoreCase))
-                                continue;
-                            int v;
-                            if (int.TryParse(line.Substring(eq + 1).Trim(), out v) && v >= 0 && v <= 120)
-                                _delay = v;
+                            _map[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
                         }
                     }
                 }
                 catch { }
-                return _delay;
+                return _map;
+            }
+        }
+
+        internal static string Get(string key)
+        {
+            string v;
+            if (Map.TryGetValue(key, out v) && v.Length > 0) return v;
+            return null;
+        }
+
+        internal static void Set(string key, string value)
+        {
+            Map[key] = value;
+            Save();
+        }
+
+        internal static int Delay
+        {
+            get
+            {
+                int v;
+                string raw = Get("delay");
+                if (raw != null && int.TryParse(raw, out v) && v >= 0 && v <= 120) return v;
+                return 5;
             }
             set
             {
                 int v = value;
                 if (v < 0) v = 0;
                 if (v > 120) v = 120;
-                _delay = v;
-                try
-                {
-                    File.WriteAllLines(Path, new string[] {
-                        "# 电源按钮设置",
-                        "# delay = 左键单击后等待的秒数，0 表示立即执行（不建议）",
-                        "delay=" + v.ToString()
-                    });
-                }
-                catch { }
+                Set("delay", v.ToString());
             }
+        }
+
+        private static void Save()
+        {
+            try
+            {
+                string lang = Get("lang");
+                if (lang == null) lang = "auto";
+                File.WriteAllLines(Path, new string[] {
+                    L.T("config.header"),
+                    L.T("config.delay"),
+                    "delay=" + Delay.ToString(),
+                    L.T("config.lang"),
+                    "lang=" + lang
+                });
+            }
+            catch { }
         }
     }
 
@@ -456,24 +626,24 @@ namespace PowerButton
             ShowInTaskbar = false;
             TopMost = true;
             DoubleBuffered = true;
-            Text = "电源";
+            Text = L.T("app");
 
             _ring.SetBounds(Ui.P(18), Ui.P(20), Ui.P(84), Ui.P(84));
 
             _caption.SetBounds(Ui.P(116), Ui.P(22), Ui.P(248), Ui.P(30));
-            _caption.Font = new Font("Microsoft YaHei UI", 13.5f, FontStyle.Bold);
+            _caption.Font = new Font(L.FontFamily, 13.5f, FontStyle.Bold);
             _caption.ForeColor = Color.White;
             _caption.BackColor = Color.Transparent;
-            _caption.Text = preview ? "预览（不会执行）"
-                : (action == PowerAction.Restart ? "即将重启" : "即将关机");
+            _caption.Text = preview ? L.T("preview.title")
+                : (action == PowerAction.Restart ? L.T("restart.title") : L.T("shutdown.title"));
 
             _detail.SetBounds(Ui.P(116), Ui.P(56), Ui.P(248), Ui.P(40));
-            _detail.Font = new Font("Microsoft YaHei UI", 9f);
+            _detail.Font = new Font(L.FontFamily, 9f);
             _detail.ForeColor = Color.FromArgb(168, 168, 168);
             _detail.BackColor = Color.Transparent;
             _detail.Text = preview
-                ? "仅测试界面，不会关机"
-                : "再次点击任务栏按钮可取消";
+                ? L.T("preview.hint")
+                : L.T("cancel.hint");
 
             _cancel.SetBounds(Ui.P(18), Ui.P(112), Ui.P(344), Ui.P(34));
             _cancel.FlatStyle = FlatStyle.Flat;
@@ -481,9 +651,9 @@ namespace PowerButton
             _cancel.FlatAppearance.MouseOverBackColor = Color.FromArgb(198, 12, 28);
             _cancel.BackColor = Color.FromArgb(232, 17, 35);
             _cancel.ForeColor = Color.White;
-            _cancel.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold);
-            _cancel.Text = preview ? "关闭预览"
-                : (action == PowerAction.Restart ? "取消重启" : "取消关机");
+            _cancel.Font = new Font(L.FontFamily, 9.5f, FontStyle.Bold);
+            _cancel.Text = preview ? L.T("preview.button")
+                : (action == PowerAction.Restart ? L.T("cancel.restart") : L.T("cancel.shutdown"));
             _cancel.Cursor = Cursors.Hand;
             _cancel.Click += OnCancelClick;
 
@@ -589,7 +759,7 @@ namespace PowerButton
         internal int TimerMinutes;
 
         private readonly int _delay;
-        private readonly Font _itemFont = new Font("Microsoft YaHei UI", 10f);
+        private readonly Font _itemFont = new Font(L.FontFamily, 10f);
 
         internal MenuForm(int delay)
         {
@@ -600,27 +770,37 @@ namespace PowerButton
             ShowInTaskbar = false;
             TopMost = true;
             BackColor = Color.FromArgb(32, 32, 32);
-            ClientSize = new Size(Ui.P(232), Ui.P(9 * 38 + 14));
             KeyPreview = true;
 
             string[] labels = new string[] {
-                "睡眠",
-                "重启",
-                "关机",
-                "注销",
-                "锁定",
-                "关闭显示器",
-                "定时关机…",
-                "取消关机",
-                "倒计时设置…"
+                L.T("menu.sleep"),
+                L.T("menu.restart"),
+                L.T("menu.shutdown"),
+                L.T("menu.signout"),
+                L.T("menu.lock"),
+                L.T("menu.displayoff"),
+                L.T("menu.timer"),
+                L.T("menu.cancel"),
+                L.T("menu.delay")
             };
+
+            // 日文/英文条目长度差很多，宽度按最长一条量出来，避免文字被截断。
+            int textWidth = 0;
+            for (int i = 0; i < labels.Length; i++)
+            {
+                Size need = TextRenderer.MeasureText(labels[i], _itemFont);
+                if (need.Width > textWidth) textWidth = need.Width;
+            }
+
+            int itemWidth = Math.Max(Ui.P(212), textWidth + Ui.P(40));
+            ClientSize = new Size(itemWidth + Ui.P(20), Ui.P(9 * 38 + 14));
 
             for (int i = 0; i < labels.Length; i++)
             {
                 Button b = new Button();
                 b.Text = labels[i];
                 b.Tag = i;
-                b.SetBounds(Ui.P(10), Ui.P(7 + i * 38), Ui.P(212), Ui.P(34));
+                b.SetBounds(Ui.P(10), Ui.P(7 + i * 38), itemWidth, Ui.P(34));
                 b.FlatStyle = FlatStyle.Flat;
                 b.FlatAppearance.BorderSize = 0;
                 b.FlatAppearance.MouseOverBackColor = Color.FromArgb(62, 62, 62);
@@ -711,7 +891,7 @@ namespace PowerButton
 
                 case 7:
                     if (!Native.AbortShutdown())
-                        MessageDlg.Info("当前没有等待执行的关机或重启。");
+                        MessageDlg.Info(L.T("msg.nothingPending"));
                     Close();
                     break;
 
@@ -725,12 +905,12 @@ namespace PowerButton
         {
             int[] minutes = new int[] { 15, 30, 60, 120 };
             ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Font = new Font("Microsoft YaHei UI", 9f);
+            menu.Font = new Font(L.FontFamily, 9f);
 
             for (int i = 0; i < minutes.Length; i++)
             {
                 int value = minutes[i];
-                ToolStripMenuItem item = new ToolStripMenuItem(value + " 分钟后关机");
+                ToolStripMenuItem item = new ToolStripMenuItem(L.TimerItem(value));
                 item.Click += delegate
                 {
                     TimerMinutes = value;
@@ -747,12 +927,12 @@ namespace PowerButton
         {
             int[] seconds = new int[] { 3, 5, 8, 10, 15 };
             ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Font = new Font("Microsoft YaHei UI", 9f);
+            menu.Font = new Font(L.FontFamily, 9f);
 
             for (int i = 0; i < seconds.Length; i++)
             {
                 int value = seconds[i];
-                ToolStripMenuItem item = new ToolStripMenuItem(value + " 秒" + (value == _delay ? "（当前）" : ""));
+                ToolStripMenuItem item = new ToolStripMenuItem(L.DelayItem(value, value == _delay));
                 item.Click += delegate
                 {
                     Config.Delay = value;
@@ -839,13 +1019,27 @@ namespace PowerButton
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // 语言要先定：下面任何一条错误提示都要用对语言。
+            string langOverride = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                string a = args[i].ToLowerInvariant();
+                if ((a == "--lang" || a == "/lang") && i + 1 < args.Length)
+                {
+                    langOverride = args[i + 1];
+                    break;
+                }
+            }
+
+            L.Init(langOverride);
+
             try
             {
                 Run(args);
             }
             catch (Exception ex)
             {
-                MessageDlg.Error("电源按钮出错：" + ex.Message);
+                MessageDlg.Error(L.T("err.generic") + ex.Message);
             }
         }
 
@@ -912,6 +1106,20 @@ namespace PowerButton
                     }
 
                     Environment.ExitCode = Shortcut.SetDescription(lnk, text) ? 0 : 1;
+                    return;
+                }
+                else if (a == "--label-out" || a == "/label-out")
+                {
+                    // 安装脚本用：把某条界面文案按当前语言写成文本文件（UTF-8，不带 BOM）。
+                    // 用途：.lnk 备注、右键动词名——这些字符串不能硬编码在脚本里。
+                    if (i + 2 >= args.Length)
+                    {
+                        Environment.ExitCode = 2;
+                        return;
+                    }
+
+                    File.WriteAllText(args[i + 2], L.T(args[i + 1]), new UTF8Encoding(false));
+                    Environment.ExitCode = 0;
                     return;
                 }
                 else if (a == "--lnk-probe" || a == "/lnk-probe")
@@ -991,8 +1199,7 @@ namespace PowerButton
             if (timerMinutes > 0)
             {
                 Native.RunShutdown("/sg /t " + (timerMinutes * 60).ToString());
-                MessageDlg.Info("已安排在 " + timerMinutes + " 分钟后关机。\n\n" +
-                                "要提前撤销，用右键菜单里的「取消关机」。");
+                MessageDlg.Info(L.ScheduledInfo(timerMinutes));
                 return;
             }
 

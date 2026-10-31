@@ -80,8 +80,17 @@ if ($LASTEXITCODE -ne 0) { throw "编译失败（退出码 $LASTEXITCODE）" }
 if (-not (Test-Path $exe)) { throw "编译没有产出 $exe" }
 Write-Host ("    " + $exe)
 
-# 快捷方式悬停时显示的说明（写进 .lnk 的备注字段）
-$descText = '左键：倒计时关机，再点一次可取消　｜　Shift+左键 或 右键菜单：电源菜单'
+# 悬停说明和右键动词名都由程序按当前界面语言生成（中文 / 日本語 / English）
+$q = [char]34
+$descFile = Join-Path $env:TEMP 'powerbutton-desc.txt'
+$descProc = Start-Process -FilePath $exe -Wait -PassThru -ArgumentList @('--label-out', 'lnk.description', ($q + $descFile + $q))
+if ($descProc.ExitCode -ne 0 -or -not (Test-Path $descFile)) { throw "生成快捷方式备注失败（退出码 $($descProc.ExitCode)）" }
+$descText = [System.IO.File]::ReadAllText($descFile, [System.Text.Encoding]::UTF8).TrimEnd("`r", "`n")
+
+$verbFile = Join-Path $env:TEMP 'powerbutton-verb.txt'
+$verbProc = Start-Process -FilePath $exe -Wait -PassThru -ArgumentList @('--label-out', 'menu.verb', ($q + $verbFile + $q))
+if ($verbProc.ExitCode -ne 0 -or -not (Test-Path $verbFile)) { throw "生成右键菜单名失败（退出码 $($verbProc.ExitCode)）" }
+$verbText = [System.IO.File]::ReadAllText($verbFile, [System.Text.Encoding]::UTF8).TrimEnd("`r", "`n")
 # ---------------------------------------------------------------- 备份
 $backupFile = Join-Path $backup 'shutdown.lnk.bak'
 if ((Test-Path $link) -and -not (Test-Path $backupFile)) {
@@ -118,10 +127,7 @@ else {
 # WScript.Shell 会按系统 ANSI 代码页（本机 CP932）转码，中文被写成 '?'。
 # 改用程序自己的 IShellLinkW 路径重写备注，保证悬停提示是完整中文。
 if (Test-Path $link) {
-    $descFile = Join-Path $env:TEMP 'powerbutton-desc.txt'
-    [System.IO.File]::WriteAllText($descFile, $descText, (New-Object System.Text.UTF8Encoding($false)))
     # 路径要显式加引号：Start-Process 不会替我们转义空格（"Quick Launch" 就带空格）
-    $q = [char]34
     $fix = Start-Process -FilePath $exe -Wait -PassThru -ArgumentList @('--set-description', ($q + $link + $q), '--file', ($q + $descFile + $q))
     if ($fix.ExitCode -ne 0) { throw ("写入快捷方式备注失败（退出码 " + $fix.ExitCode + "）") }
 }
@@ -129,7 +135,7 @@ if (Test-Path $link) {
 Write-Step "注册右键菜单命令"
 $verb = 'HKCU:\Software\Classes\Applications\PowerButton.exe\shell\menu'
 New-Item -Path $verb -Force | Out-Null
-Set-ItemProperty -Path $verb -Name '(Default)' -Value '电源菜单(&M)'
+Set-ItemProperty -Path $verb -Name '(Default)' -Value $verbText
 Set-ItemProperty -Path $verb -Name 'Icon' -Value ($exe + ',0')
 New-Item -Path ($verb + '\command') -Force | Out-Null
 Set-ItemProperty -Path ($verb + '\command') -Name '(Default)' -Value ('"' + $exe + '" --menu')

@@ -64,6 +64,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 ```ini
 delay=5
+lang=auto
 ```
 
 `delay=0` 表示立即执行（不建议）。
@@ -80,6 +81,8 @@ PowerButton.exe --selftest       # 只检查能否取得关机权限，退出码
 PowerButton.exe --set-description <lnk> <文本>   # 写快捷方式备注（安装脚本用）
 PowerButton.exe --set-description <lnk> --file <utf8 文件>   # 同上，避开命令行空格拆分
 PowerButton.exe --lnk-probe <lnk> <输出文件>     # 把 .lnk 里的备注原样读出来核对
+PowerButton.exe --lang ja|zh|en     # 临时指定界面语言（默认跟随 Windows 显示语言）
+PowerButton.exe --label-out <键> <输出文件>   # 按当前语言导出文案（install.ps1 用）
 ```
 
 `--preview` 是唯一安全的可视化测试方式：它完整走倒计时窗口、取消按钮、再点一次取消的逻辑，只是不执行关机。
@@ -140,3 +143,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ## 许可
 
 本仓库代码随你处置。内置图标来自 Google Material Symbols（Apache-2.0）；`icons\raw\` 下的候选依次来自 Material Symbols、Fluent UI Icons、Lucide（ISC）、Tabler、Phosphor、Bootstrap Icons、Heroicons、Carbon、Ionicons（均 MIT/Apache-2.0）与 Font Awesome Free（图标为 CC BY 4.0，如改用需署名）。
+
+
+## 多语言 / Languages
+
+界面有**中文、日本語、English** 三套文案，默认跟随 Windows 显示语言（`CultureInfo.CurrentUICulture`）：
+`ja` → 日本語，`zh` → 中文，其他 → English。本机是 `ja-JP`，所以装完默认就是日文界面。
+
+想换语言，三种办法（优先级从高到低）：
+
+```powershell
+PowerButton.exe --lang zh                     # 临时：只对这一条命令生效
+$env:POWERBUTTON_LANG = 'zh'                  # 临时：对当前会话里启动的程序生效
+# %LOCALAPPDATA%\PowerButton\config.ini 里写 lang=zh（或 ja / en / auto）
+```
+
+细节：
+
+- 字体按语言切换：中文 `Microsoft YaHei UI`、日文 `Yu Gothic UI`、英文 `Segoe UI`——混用会出现「借字形」（日文汉字用中文字形渲染）的问题。
+- 菜单宽度按最长的一条量出来，日文 `時間を指定してシャットダウン…` 不会被截断。
+- 快捷方式悬停说明（`.lnk` 备注）和右键动词名也由程序按同一语言生成，装完即是系统语言的写法；换语言后重跑一次 `install.ps1` 即可刷新这两处。

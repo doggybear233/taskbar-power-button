@@ -20,11 +20,17 @@ The Windows taskbar lets you pin a shortcut to `shutdown.exe -s -t 0`. One miscl
 
 This project replaces that shortcut with a small executable that behaves the way a power button should: **a short countdown you can cancel, and a real power menu for everything else.**
 
-<img src="docs/screenshots/01-taskbar.png" width="340" alt="The button among pinned apps">
+<img src="docs/screenshots/01-taskbar.png" width="133" alt="The power button next to Start">
 
 | Left click | Cancel | Menu |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/02-countdown-ja.png" width="330"> | click the button again · <kbd>Esc</kbd> · or the red button in the window | <img src="docs/screenshots/04-menu-ja.png" width="150"> |
+| <img src="docs/screenshots/02-countdown-en.png" width="330"> | click the button again · <kbd>Esc</kbd> · or the red button in the window | <img src="docs/screenshots/04-menu-en.png" width="150"> |
+
+<sub>The same window and menu in 中文 and 日本語:</sub>
+
+| 中文 | 日本語 |
+| :---: | :---: |
+| <img src="docs/screenshots/02-countdown-zh.png" width="300"><br><img src="docs/screenshots/04-menu-zh.png" width="120"> | <img src="docs/screenshots/02-countdown-ja.png" width="300"><br><img src="docs/screenshots/04-menu-ja.png" width="120"> |
 
 - No logs, no network, no background process, no admin rights.
 - It writes in exactly three places: the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one `HKCU` context-menu entry.

@@ -20,11 +20,17 @@ Windows のタスクバーには `shutdown.exe -s -t 0` のショートカット
 
 このプロジェクトは、そのショートカットを「電源ボタンらしく」振る舞う小さな実行ファイルに置き換えます。**中止できる短いカウントダウン**と、**実用的な電源メニュー**です。
 
-<img src="docs/screenshots/01-taskbar.png" width="340" alt="他のピン留めアプリと並んだところ">
+<img src="docs/screenshots/01-taskbar.png" width="133" alt="スタートの隣に並んだ電源ボタン">
 
 | 左クリック | 中止 | メニュー |
 | :---: | :---: | :---: |
 | <img src="docs/screenshots/02-countdown-ja.png" width="330"> | もう一度ボタンを押す · <kbd>Esc</kbd> · 「シャットダウンを中止」 | <img src="docs/screenshots/04-menu-ja.png" width="150"> |
+
+<sub>同じ画面とメニューの英語・中国語版：</sub>
+
+| English | 中文 |
+| :---: | :---: |
+| <img src="docs/screenshots/02-countdown-en.png" width="300"><br><img src="docs/screenshots/04-menu-en.png" width="120"> | <img src="docs/screenshots/02-countdown-zh.png" width="300"><br><img src="docs/screenshots/04-menu-zh.png" width="120"> |
 
 - ログなし、通信なし、常駐プロセスなし、管理者権限も不要です。
 - 書き込むのは次の 3 か所だけ：タスクバーのショートカット、`%LOCALAPPDATA%\PowerButton\`、そして `HKCU` の右クリックメニュー項目 1 つ。

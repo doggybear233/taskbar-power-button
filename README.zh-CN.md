@@ -20,11 +20,17 @@ Windows 允许你把 `shutdown.exe -s -t 0` 钉到任务栏上。这一点下去
 
 这个项目把那个快捷方式换成一个行为像电源键的小程序：**一段能取消的倒计时，外加一个真正可用的电源菜单。**
 
-<img src="docs/screenshots/01-taskbar.png" width="340" alt="和其他固定应用排在一起">
+<img src="docs/screenshots/01-taskbar.png" width="133" alt="电源按钮就排在「开始」旁边">
 
 | 左键 | 取消 | 菜单 |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/03-countdown-zh.png" width="330"> | 再点一次按钮 · <kbd>Esc</kbd> · 点「取消关机」 | <img src="docs/screenshots/04-menu-ja.png" width="150"> |
+| <img src="docs/screenshots/02-countdown-zh.png" width="330"> | 再点一次按钮 · <kbd>Esc</kbd> · 点「取消关机」 | <img src="docs/screenshots/04-menu-zh.png" width="150"> |
+
+<sub>同一窗口与菜单的英文、日文版本：</sub>
+
+| English | 日本語 |
+| :---: | :---: |
+| <img src="docs/screenshots/02-countdown-en.png" width="300"><br><img src="docs/screenshots/04-menu-en.png" width="120"> | <img src="docs/screenshots/02-countdown-ja.png" width="300"><br><img src="docs/screenshots/04-menu-ja.png" width="120"> |
 
 - 没有日志、没有网络、没有后台进程、不需要管理员权限。
 - 只写三处：任务栏快捷方式本身、`%LOCALAPPDATA%\PowerButton\`、一条 `HKCU` 右键菜单项。

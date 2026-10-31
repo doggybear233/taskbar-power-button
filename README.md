@@ -16,9 +16,11 @@
 
 ---
 
-The Windows taskbar lets you pin a shortcut to `shutdown.exe -s -t 0`. One misclick and the machine is gone — no countdown you can stop, no chance to save anything.
+Click the power button and a five-second countdown drops into the corner of the screen: a dark card, a red ring draining around the seconds, one line telling you what is about to happen. Click again — anywhere on the pin, or `Esc` — and it is gone, as if nothing had happened.
 
-This project replaces that shortcut with a small executable that behaves the way a power button should: **a short countdown you can cancel, and a real power menu for everything else.**
+That is the whole idea. **One click to shut down, a few seconds to change your mind.** No confirmation dialog, no second click to commit, no trip back to the Start menu.
+
+Right click opens the rest of the power menu — sleep, restart, sign out, lock, display off, shut down later — drawn in the same language as the button: same radius, same spacing, same font as the rest of Windows 11, at any DPI, in your system language.
 
 <img src="docs/screenshots/01-taskbar.png" width="133" alt="The power button next to Start">
 
@@ -32,9 +34,11 @@ This project replaces that shortcut with a small executable that behaves the way
 | :---: | :---: |
 | <img src="docs/screenshots/02-countdown-zh.png" width="300"><br><img src="docs/screenshots/04-menu-zh.png" width="120"> | <img src="docs/screenshots/02-countdown-ja.png" width="300"><br><img src="docs/screenshots/04-menu-ja.png" width="120"> |
 
-- No logs, no network, no background process, no admin rights.
-- It writes in exactly three places: the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one `HKCU` context-menu entry.
-- The pinned slot, the icon position and the shortcut path stay exactly where they are.
+- **Cancel is the same button.** The countdown is dismissed from the pin you pressed, not from a window you have to go find.
+- **It never steals focus.** The card is a small always-on-top window: work behind it keeps running, and typing keeps going to the app you were using.
+- **Everything is drawn.** Ring, menu, spacing and font are the program's own, so it holds up on a 1080p laptop and a 4K desk alike.
+
+<sub>Under the hood it stays quiet: no logs, no network, no background process, no admin rights. It writes in exactly three places — the pinned shortcut, `%LOCALAPPDATA%\PowerButton\`, and one `HKCU` context-menu entry — and only when you install or change a setting.</sub>
 
 ## Install
 

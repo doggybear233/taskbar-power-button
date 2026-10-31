@@ -27,6 +27,12 @@ namespace PowerButton
         Restart
     }
 
+    internal static class Timing
+    {
+        // 双击判定窗口（毫秒）。系统默认 500ms 会让单击之后明显发愣，
+        // 这里压到 200ms：够接住正常速度的双击，又不至于让人觉得卡了一下。
+        internal const int ClickWindow = 200;
+    }
     // 任务栏几何。Windows 的「开始」按钮在哪，弹窗就落在哪旁边——任务栏
     // 横放在上/下、竖放在左/右，图标居中还是靠左，都跟着走。
     internal static class Taskbar
@@ -822,7 +828,7 @@ namespace PowerButton
         {
             if (_finished || _cancelling) return;
 
-            if (!_preview && _watch.Elapsed.TotalMilliseconds < SystemInformation.DoubleClickTime)
+            if (!_preview && _watch.Elapsed.TotalMilliseconds < Timing.ClickWindow)
             {
                 _cancelling = true;
                 _timer.Stop();
@@ -1370,7 +1376,7 @@ namespace PowerButton
             // 先等一个双击窗口：第二下落在窗口内就是「双击 = 开菜单」，
             // 这时卡片一眼都不该出现——否则会先闪一下「即将关机」再变菜单。
             // 窗口过了才建卡片，所以倒计时本身仍是完整的 seconds 秒。
-            int clickWindow = SystemInformation.DoubleClickTime;
+            int clickWindow = Timing.ClickWindow;
             if (!preview && signal != null && clickWindow > 0 && signal.WaitOne(clickWindow))
             {
                 ReleaseGuard(guard, signal);

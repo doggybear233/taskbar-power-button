@@ -16,7 +16,7 @@
 
 ---
 
-Click the power button and a five-second countdown drops into the corner of the screen: a dark card, a red ring draining around the seconds, one line telling you what is about to happen. Click again — anywhere on the pin, or `Esc` — and it is gone, as if nothing had happened.
+Click the power button and a five-second countdown drops in just above the taskbar, right by the Start button: a dark card, a red ring draining around the seconds, one line telling you what is about to happen. Click again — anywhere on the pin, or `Esc` — and it is gone, as if nothing had happened.
 
 That is the whole idea. **One click to shut down, a few seconds to change your mind.** No confirmation dialog, no second click to commit, no trip back to the Start menu.
 
@@ -77,6 +77,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 | **<kbd>Esc</kbd> or *Cancel shutdown* in the card** | Same as above. |
 | **<kbd>Shift</kbd> + left click** | Opens the power menu instead of the countdown. |
 | **The *Power menu* button in the card** | Opens the same menu without waiting out the countdown. |
+| **Double-click the taskbar button** | Same as <kbd>Shift</kbd> + click: the countdown is dropped and the menu opens straight away. |
 | **Hover** | The shortcut's own tooltip, drawn by Explorer. |
 
 The menu offers **Sleep · Restart · Shut down · Sign out · Lock · Turn off display · Shut down later… · Cancel shutdown · Countdown settings…**. Restart goes through the same cancellable countdown.
@@ -168,7 +169,7 @@ Fonts switch with the language (`Microsoft YaHei UI`, `Yu Gothic UI`, `Segoe UI`
 
 ## Limitations
 
-- **Right-clicking the taskbar button opens Explorer's menu, not ours, and long-press does nothing.** A taskbar button belongs to Explorer; a pinned shortcut can only "start a program", and this program starts *after* the click, so it never sees press, hold or right-click events — and its registered verb does not surface on the pinned item. Real gestures would need a resident process, a `WH_MOUSE_LL` hook and recomputing the button rectangle on every resolution, DPI or monitor change. This project deliberately stays resident-free, so the two menu entry points are <kbd>Shift</kbd> + click and the *Power menu* button on the card.
+- **Right-clicking the taskbar button opens Explorer's menu, not ours, and long-press does nothing.** A taskbar button belongs to Explorer; a pinned shortcut can only "start a program", and this program starts *after* the click, so it never sees press, hold or right-click events — and its registered verb does not surface on the pinned item. Real gestures would need a resident process, a `WH_MOUSE_LL` hook and recomputing the button rectangle on every resolution, DPI or monitor change. This project deliberately stays resident-free, so the three menu entry points are double-click, <kbd>Shift</kbd> + click and the *Power menu* button on the card.
 - **"Shut down later…" is the one path that still uses `shutdown.exe`**, because the scheduled shutdown has to outlive this process. At the 60-second mark Windows shows its own dialog — that is inherent to scheduled shutdowns.
 - **Per-monitor DPI switching is not handled live.** The UI scales from the DPI it sees at startup; moving the window to a monitor with a different scale factor may leave it slightly large or small until restart.
 - Tested on Windows 11 24H2/25H2 at 150 % scaling. Windows 10 should work (the APIs are all long-standing) but has not been tested.

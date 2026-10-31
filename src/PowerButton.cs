@@ -27,6 +27,91 @@ namespace PowerButton
         Restart
     }
 
+    // 任务栏几何。Windows 的「开始」按钮在哪，弹窗就落在哪旁边——任务栏
+    // 横放在上/下、竖放在左/右，图标居中还是靠左，都跟着走。
+    internal static class Taskbar
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Rect { public int Left, Top, Right, Bottom; }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr FindWindow(string className, string windowName);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string windowName);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, out Rect rect);
+
+        private static Rectangle ToRectangle(Rect r)
+        {
+            return new Rectangle(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+        }
+
+        // 任务栏矩形与「开始」按钮矩形；拿不到就返回 false。
+        internal static bool TryGet(out Rectangle bar, out Rectangle start)
+        {
+            bar = Rectangle.Empty;
+            start = Rectangle.Empty;
+
+            IntPtr tray = FindWindow("Shell_TrayWnd", null);
+            if (tray == IntPtr.Zero) return false;
+
+            Rect r;
+            if (!GetWindowRect(tray, out r)) return false;
+            bar = ToRectangle(r);
+            if (bar.Width <= 0 || bar.Height <= 0) return false;
+
+            IntPtr button = FindWindowEx(tray, IntPtr.Zero, "Start", null);
+            if (button != IntPtr.Zero && GetWindowRect(button, out r))
+            {
+                Rectangle found = ToRectangle(r);
+                if (found.Width > 0 && found.Height > 0) start = found;
+            }
+
+            if (start.IsEmpty)
+            {
+                // 兜底：Windows 版本换了类名也还能落个合理位置。
+                if (bar.Width >= bar.Height) start = new Rectangle(bar.Left, bar.Top, bar.Height, bar.Height);
+                else start = new Rectangle(bar.Left, bar.Top, bar.Width, bar.Width);
+            }
+
+            return true;
+        }
+
+        // 把一块 size 大小的窗口摆到「开始」按钮旁边、贴住任务栏，再夹进工作区。
+        internal static Point SlotFor(Size size)
+        {
+            Rectangle bar, start;
+            if (!TryGet(out bar, out start))
+            {
+                Rectangle fallback = Screen.PrimaryScreen.WorkingArea;
+                return new Point(fallback.Right - size.Width - Ui.P(20), fallback.Bottom - size.Height - Ui.P(12));
+            }
+
+            Rectangle work = Screen.FromRectangle(bar).WorkingArea;
+            int gap = Ui.P(10);
+            int x, y;
+
+            if (bar.Width >= bar.Height)
+            {
+                bool atBottom = bar.Top + bar.Height / 2 > work.Top + work.Height / 2;
+                y = atBottom ? bar.Top - size.Height - gap : bar.Bottom + gap;
+                x = start.Left + start.Width / 2 - size.Width / 2;
+            }
+            else
+            {
+                bool atRight = bar.Left + bar.Width / 2 > work.Left + work.Width / 2;
+                x = atRight ? bar.Left - size.Width - gap : bar.Right + gap;
+                y = start.Top + start.Height / 2 - size.Height / 2;
+            }
+
+            x = Math.Max(work.Left + gap, Math.Min(x, work.Right - size.Width - gap));
+            y = Math.Max(work.Top + gap, Math.Min(y, work.Bottom - size.Height - gap));
+            return new Point(x, y);
+        }
+    }
+
     internal static class Native
     {
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -617,6 +702,9 @@ namespace PowerButton
         // 卡片上的「电源菜单」被点时置位：取消这次倒计时，改由调用方打开菜单。
         internal bool OpenMenuRequested;
 
+        // 任务栏按钮被快速点了第二下（双击）：同样放弃倒计时，直接开菜单。
+        internal bool DoubleClicked;
+
         internal CountdownForm(PowerAction action, int seconds, EventWaitHandle signal, bool preview)
         {
             _action = action;
@@ -701,8 +789,7 @@ namespace PowerButton
                 Region = new Region(path);
             }
 
-            Rectangle work = Screen.FromPoint(Cursor.Position).WorkingArea;
-            Location = new Point(work.Right - Width - Ui.P(20), work.Bottom - Height - Ui.P(12));
+            Location = Taskbar.SlotFor(Size);
 
             _ring.Update(_seconds, 1.0);
             _watch.Start();
@@ -720,13 +807,32 @@ namespace PowerButton
                 catch { return; }
                 try
                 {
-                    BeginInvoke(new MethodInvoker(delegate() { RequestCancel(); }));
+                    BeginInvoke(new MethodInvoker(delegate() { RequestClickFromTaskbar(); }));
                 }
                 catch { }
             });
             t.IsBackground = true;
             t.Name = "power-cancel-listener";
             t.Start();
+        }
+
+        // 任务栏按钮又被点了一下。间隔够短就当双击（直接开电源菜单），
+        // 慢慢再点一次仍然只是取消——和卡片的 Cancel 按钮语义一致。
+        private void RequestClickFromTaskbar()
+        {
+            if (_finished || _cancelling) return;
+
+            if (!_preview && _watch.Elapsed.TotalMilliseconds < SystemInformation.DoubleClickTime)
+            {
+                _cancelling = true;
+                _timer.Stop();
+                _finished = true;
+                DoubleClicked = true;
+                Close();
+                return;
+            }
+
+            RequestCancel();
         }
 
         private void OnTick(object sender, EventArgs e)
@@ -866,8 +972,9 @@ namespace PowerButton
 
             Point cursor = Cursor.Position;
             Rectangle work = Screen.FromPoint(cursor).WorkingArea;
-            int x = cursor.X - Ui.P(24);
-            int y = cursor.Y - Ui.P(24);
+            Point slot = Taskbar.SlotFor(Size);
+            int x = slot.X;
+            int y = slot.Y;
 
             if (x + Width > work.Right) x = work.Right - Width - Ui.P(6);
             if (y + Height > work.Bottom) y = work.Bottom - Height - Ui.P(6);
@@ -1280,6 +1387,12 @@ namespace PowerButton
 
             // 只有倒计时真的走完才动手；被取消 / 窗口被关掉时什么都不做。
             if (form != null && form.OpenMenuRequested)
+            {
+                RunMenu(Config.Delay);
+                return;
+            }
+
+            if (form != null && form.DoubleClicked)
             {
                 RunMenu(Config.Delay);
                 return;
